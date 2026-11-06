@@ -11,7 +11,7 @@ export async function updateCurrentLocation(req, res, next) {
     const coordinates = parseCoordinates(req.body.lat, req.body.lng)
     if (!coordinates) return res.status(400).json({ success: false, message: 'Valid latitude and longitude are required', data: null })
     const location = { ...coordinates, address: req.body.address?.trim() || undefined, source: req.body.source || 'browser-gps', updatedAt: new Date() }
-    const user = await User.findByIdAndUpdate(req.user._id, { $set: { currentLocation: location } }, { new: true, runValidators: true }).lean()
+    const user = await User.findByIdAndUpdate(req.user._id, { $set: { currentLocation: location } }, { returnDocument: 'after', runValidators: true }).lean()
     res.json({ success: true, message: 'Location updated', data: { location: user.currentLocation } })
   } catch (error) { next(error) }
 }

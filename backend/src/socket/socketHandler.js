@@ -35,7 +35,7 @@ export function registerSocketHandlers(io) {
       if (!location) return socket.emit('socket_error', { message: 'Invalid driver coordinates' })
       const payload = { driverId, emergencyId, location }
       if (emergencyId) {
-        const emergency = await EmergencyRequest.findByIdAndUpdate(emergencyId, { $set: { 'driverLocation.lat': location.lat, 'driverLocation.lng': location.lng, 'driverLocation.heading': location.heading, 'driverLocation.updatedAt': new Date() } }, { new: true }).catch(() => null)
+        const emergency = await EmergencyRequest.findByIdAndUpdate(emergencyId, { $set: { 'driverLocation.lat': location.lat, 'driverLocation.lng': location.lng, 'driverLocation.heading': location.heading, 'driverLocation.updatedAt': new Date() } }, { returnDocument: 'after' }).catch(() => null)
         if (emergency?.userId) io.to(userRoom(emergency.userId.toString())).emit('DRIVER_LOCATION_UPDATED', payload)
       }
       io.to(ROOMS.police).emit('DRIVER_LOCATION_UPDATED', payload)

@@ -71,7 +71,7 @@ export async function updateProfile(req, res, next) {
     const updates = {}
     if (typeof req.body.name === 'string' && req.body.name.trim()) updates.name = req.body.name.trim()
     if (typeof req.body.phone === 'string') updates.phone = req.body.phone.trim()
-    const user = await User.findByIdAndUpdate(req.user._id, { $set: updates }, { new: true, runValidators: true }).lean()
+    const user = await User.findByIdAndUpdate(req.user._id, { $set: updates }, { returnDocument: 'after', runValidators: true }).lean()
     res.json({ success: true, message: 'Profile updated', data: { user: publicUser(user) } })
   } catch (error) { next(error) }
 }

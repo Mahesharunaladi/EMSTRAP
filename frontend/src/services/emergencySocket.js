@@ -8,15 +8,20 @@ function connect() { if (!socket.connected) socket.connect(); return socket }
 export function dispatchEmergency(payload) {
   connect()
   if (payload.userId) socket.emit('join_room', { userId: payload.userId })
-  socket.emit('emergency:dispatch', { ...payload, targets: ['government-drivers', 'police-command'] })
-  return { connected: true }
+  return new Promise((resolve, reject) => {
+    socket.timeout(20000).emit('emergency:dispatch', { ...payload, targets: ['government-drivers', 'police-command'] }, (error, response) => {
+      if (error) return reject(new Error('Emergency dispatch timed out. Check your connection and try again.'))
+      if (!response?.success) return reject(new Error(response?.message || 'Emergency dispatch failed. Please try again.'))
+      resolve(response.data)
+    })
+  })
 }
 
 export function uploadEmergencyEvidence(payload) {
   socket.emit('emergency:evidence', payload)
 }
 
-export function joinDriverRoom(driverId, onEmergency) { connect(); socket.emit('join_room', { role: 'GOVT_DRIVER', userId: driverId }); if (onEmergency) socket.on('NEW_EMERGENCY_ALERT', onEmergency); return () => onEmergency && socket.off('NEW_EMERGENCY_ALERT', onEmergency) }
+export function joinDriverRoom(driverId, onEmergency, driverType = 'GOVERNMENT', onAssignment) { connect(); if (driverType !== 'PRIVATE') { socket.emit('join_room', { role: 'GOVT_DRIVER', userId: driverId }); if (onEmergency) socket.on('NEW_EMERGENCY_ALERT', onEmergency); if (onAssignment) socket.on('DRIVER_ASSIGNED', onAssignment) } return () => { if (onEmergency) socket.off('NEW_EMERGENCY_ALERT', onEmergency); if (onAssignment) socket.off('DRIVER_ASSIGNED', onAssignment) } }
 export function sendDriverLocation(payload) { connect(); socket.emit('driver_location_update', payload) }
 export function sendUserLocation(payload) { connect(); socket.emit('user_location_update', payload) }
 export function onEmergencyCreated(callback) { connect(); socket.on('emergency:created', callback); return () => socket.off('emergency:created', callback) }

@@ -69,7 +69,7 @@ export function registerSocketHandlers(io) {
         const emergency = await EmergencyRequest.findByIdAndUpdate(emergencyId, { $set: { status: 'ACCEPTED', assignedDriverId: driverId } }, { returnDocument: 'after' }).lean()
         if (!driver || !emergency) return socket.emit('socket_error', { message: 'Emergency or driver not found' })
         const assignment = { emergencyId: emergency._id, userId: emergency.userId, status: emergency.status, driver: { id: driver._id, name: driver.name, phone: driver.phone, selfie: driver.selfie } }
-        io.to(ROOMS.police).emit('DRIVER_ASSIGNED', assignment)
+        io.to(ROOMS.police).to(ROOMS.govtDriver).emit('DRIVER_ASSIGNED', assignment)
         if (emergency.userId) io.to(userRoom(emergency.userId.toString())).emit('DRIVER_ASSIGNED', assignment)
       } catch (error) { socket.emit('socket_error', { message: error.message }) }
     })

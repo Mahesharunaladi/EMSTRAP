@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:police": "vite --config police.vite.config.js",
+    "dev:driver": "vite --config driver.vite.config.js",
     "build": "vite build",
     "preview": "vite preview"
   },

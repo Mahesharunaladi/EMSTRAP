@@ -2,7 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Toaster } from 'react-hot-toast'
 import PoliceDashboard from '../../src/pages/police/PoliceDashboard'
-import '../../src/index.css'
+import './police.css'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

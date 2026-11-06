@@ -7,10 +7,13 @@ import { registerSocketHandlers } from './socket/socketHandler.js'
 
 const port = Number(process.env.PORT || 5001)
 const clientOrigins = (process.env.CLIENT_ORIGIN || 'http://localhost:5173').split(',').map(origin => origin.trim())
-if (process.env.NODE_ENV !== 'production' && !clientOrigins.includes('http://localhost:5174')) clientOrigins.push('http://localhost:5174')
+for (const origin of ['http://localhost:5174', 'http://localhost:5175']) {
+  if (!clientOrigins.includes(origin)) clientOrigins.push(origin)
+}
 const httpServer = http.createServer(app)
 const io = new Server(httpServer, {
   cors: { origin: clientOrigins, credentials: true },
+  maxHttpBufferSize: 2_000_000,
   transports: ['websocket', 'polling'],
 })
 

@@ -8,6 +8,7 @@ import MobileServicesPage from './pages/mobile/MobileServicesPage'
 import MobileActivityPage from './pages/mobile/MobileActivityPage'
 import MobileAccountPage from './pages/mobile/MobileAccountPage'
 import AccountSubPage from './pages/mobile/AccountSubPage'
+import AccountHistoryPage from './pages/mobile/AccountHistoryPage'
 import SignInPage from './pages/auth/SignInPage'
 import SignUpPage from './pages/auth/SignUpPage'
 import VerifyEmailPage from './pages/auth/VerifyEmailPage'
@@ -32,6 +33,8 @@ export default function App() {
       <Route path="/app/account/locations" element={<AccountSubPage section="locations" />} />
       <Route path="/app/account/payments" element={<AccountSubPage section="payments" />} />
       <Route path="/app/account/safety" element={<AccountSubPage section="safety" />} />
+      <Route path="/app/account/billing" element={<AccountHistoryPage type="billing" />} />
+      <Route path="/app/account/rides" element={<AccountHistoryPage type="rides" />} />
       <Route path="/booking" element={<BookingPage />} />
     </Route>
     <Route element={<ProtectedRoute allowedRoles={['driver']} />}><Route path="/dashboard/driver" element={<RolePlaceholder role="Driver" />} /></Route>

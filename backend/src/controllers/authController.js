@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs'
 import crypto from 'node:crypto'
 import jwt from 'jsonwebtoken'
-import { User } from '../config/db.js'
+import { AmbulanceBooking, BookingUser, User } from '../config/db.js'
 import { sendVerificationCode } from '../services/emailService.js'
 import { updateCurrentLocation } from './locationController.js'
 
@@ -65,3 +65,31 @@ export async function login(req, res, next) {
 export async function currentUser(req, res) { res.json({ success: true, message: 'Current user', data: { user: publicUser(req.user) } }) }
 export function logout(_req, res) { res.clearCookie('token', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' }); res.json({ success: true, message: 'Signed out successfully', data: null }) }
 export { updateCurrentLocation }
+
+export async function updateProfile(req, res, next) {
+  try {
+    const updates = {}
+    if (typeof req.body.name === 'string' && req.body.name.trim()) updates.name = req.body.name.trim()
+    if (typeof req.body.phone === 'string') updates.phone = req.body.phone.trim()
+    const user = await User.findByIdAndUpdate(req.user._id, { $set: updates }, { new: true, runValidators: true }).lean()
+    res.json({ success: true, message: 'Profile updated', data: { user: publicUser(user) } })
+  } catch (error) { next(error) }
+}
+
+async function findBookingUser(email) { return BookingUser.findOne({ email }).select('_id').lean() }
+
+export async function rideHistory(req, res, next) {
+  try {
+    const bookingUser = await findBookingUser(req.user.email)
+    const rides = bookingUser ? await AmbulanceBooking.find({ userId: bookingUser._id }).sort({ createdAt: -1 }).lean() : []
+    res.json({ success: true, message: 'Ride history', data: { rides } })
+  } catch (error) { next(error) }
+}
+
+export async function billingHistory(req, res, next) {
+  try {
+    const bookingUser = await findBookingUser(req.user.email)
+    const payments = bookingUser ? await AmbulanceBooking.find({ userId: bookingUser._id }).select('tier price paymentStatus status createdAt pickup destination').sort({ createdAt: -1 }).lean() : []
+    res.json({ success: true, message: 'Billing history', data: { payments } })
+  } catch (error) { next(error) }
+}

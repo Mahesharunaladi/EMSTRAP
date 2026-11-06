@@ -21,6 +21,12 @@ button { cursor: pointer; }
 .glow-red { box-shadow: 0 0 36px rgba(248, 113, 113, .16); }
 .grid-glow { background-image: linear-gradient(rgba(148,163,184,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,.045) 1px, transparent 1px); background-size: 32px 32px; }
 .mobile-app button { min-height: 44px; }
+.mobile-app { width: 100%; min-width: 0; overflow-x: hidden; }
+.mobile-app > div { width: 100%; max-width: 480px !important; }
+.mobile-app nav { width: min(calc(100% - 32px), 448px); max-width: 448px !important; }
+.mobile-location-status { display: flex; align-items: center; gap: .3rem; font-size: 10px; font-weight: 600; color: #64748b; }
+.mobile-location-status.is-live { color: #059669; }
+.mobile-location-status.is-error { color: #dc2626; }
 .mobile-search { min-height: 58px; border: 1px solid #dfe3e8; border-radius: 9999px; background: #fff; padding: .5rem .65rem .5rem .75rem; box-shadow: 0 6px 18px rgba(15, 23, 42, .05); }
 .mobile-action-card { position: relative; min-height: 174px; border-radius: 22px; padding: 18px; transition: transform .2s ease, box-shadow .2s ease; }
 .mobile-action-card:hover, .mobile-service-card:hover { transform: translateY(-2px); box-shadow: 0 12px 24px rgba(15, 23, 42, .1); }
@@ -37,6 +43,9 @@ button { cursor: pointer; }
 .tone-amber { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #b45309; }
 .mobile-trip-card { border: 1px solid #e2e8f0; border-radius: 22px; background: #fff; padding: 16px; box-shadow: 0 5px 16px rgba(15, 23, 42, .04); }
 .mobile-account-row { display: flex; width: 100%; align-items: center; gap: 12px; border: 1px solid #e2e8f0; border-radius: 18px; background: #fff; padding: 10px 12px; text-align: left; }
+.mobile-account-row > span:nth-child(2) { min-width: 0; }
+input[placeholder="Search an address or landmark"] { padding-left: 2.75rem !important; }
+.mobile-app form .relative > svg { pointer-events: none; }
 .mobile-booking-tier { display: block; width: 100%; border: 1px solid transparent; border-radius: 22px; padding: 16px; text-align: left; transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease; }
 .mobile-booking-tier:hover { transform: translateY(-2px); box-shadow: 0 10px 22px rgba(15, 23, 42, .08); }
 .mobile-booking-tier.selected { border-color: #0f172a; box-shadow: 0 0 0 2px #0f172a; }

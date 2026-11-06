@@ -8,6 +8,7 @@ const connectionOptions = {
   connectTimeoutMS: 10000,
   socketTimeoutMS: 30000,
   serverSelectionTimeoutMS: 5000,
+  bufferCommands: false,
 }
 
 const emergencyUri = process.env.EMERGENCY_MONGODB_URI
@@ -37,6 +38,8 @@ export async function disconnectDatabases() {
 const locationSchema = new mongoose.Schema({
   lat: { type: Number, required: true },
   lng: { type: Number, required: true },
+  address: String,
+  source: String,
   heading: Number,
   updatedAt: { type: Date, default: Date.now },
 }, { _id: false })
@@ -57,6 +60,7 @@ const userSchema = new mongoose.Schema({
   isEmailVerified: { type: Boolean, default: false },
   verificationCodeHash: { type: String, select: false },
   verificationCodeExpiresAt: { type: Date, select: false },
+  currentLocation: locationSchema,
 }, { timestamps: true })
 const basicRoleSchema = new mongoose.Schema({ name: String, email: String, phone: String, role: String }, { timestamps: true })
 const emergencyRequestSchema = new mongoose.Schema({

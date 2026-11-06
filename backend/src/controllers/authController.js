@@ -3,10 +3,11 @@ import crypto from 'node:crypto'
 import jwt from 'jsonwebtoken'
 import { User } from '../config/db.js'
 import { sendVerificationCode } from '../services/emailService.js'
+import { updateCurrentLocation } from './locationController.js'
 
 const OTP_TTL_MS = 10 * 60 * 1000
 const COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000
-const publicUser = user => ({ id: user._id, name: user.name, email: user.email, role: user.role.toLowerCase(), verified: user.isEmailVerified })
+const publicUser = user => ({ id: user._id, name: user.name, email: user.email, role: user.role.toLowerCase(), verified: user.isEmailVerified, currentLocation: user.currentLocation || null })
 const hashCode = value => crypto.createHash('sha256').update(value).digest('hex')
 const createCode = () => String(crypto.randomInt(100000, 1000000))
 
@@ -63,3 +64,4 @@ export async function login(req, res, next) {
 
 export async function currentUser(req, res) { res.json({ success: true, message: 'Current user', data: { user: publicUser(req.user) } }) }
 export function logout(_req, res) { res.clearCookie('token', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' }); res.json({ success: true, message: 'Signed out successfully', data: null }) }
+export { updateCurrentLocation }

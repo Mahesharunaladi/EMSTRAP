@@ -63,6 +63,7 @@ const userSchema = new mongoose.Schema({
   currentLocation: locationSchema,
 }, { timestamps: true })
 const basicRoleSchema = new mongoose.Schema({ name: String, email: String, phone: String, role: String }, { timestamps: true })
+const govtDriverSchema = new mongoose.Schema({ name: { type: String, required: true, trim: true }, email: { type: String, required: true, unique: true, lowercase: true, trim: true, index: true }, phone: String, role: { type: String, default: 'GOVT_DRIVER' }, passwordHash: { type: String, required: true, select: false }, isEmailVerified: { type: Boolean, default: false }, verificationCodeHash: { type: String, select: false }, verificationCodeExpiresAt: { type: Date, select: false }, status: { type: String, enum: ['PENDING_DOCUMENTS', 'PENDING_REVIEW', 'ACTIVE', 'SUSPENDED'], default: 'PENDING_DOCUMENTS' }, selfie: mediaSchema, drivingLicense: mediaSchema, currentLocation: locationSchema }, { timestamps: true })
 const emergencyRequestSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   anonymous: { type: Boolean, default: false },
@@ -84,7 +85,7 @@ export const User = emergencyDb.model('User', userSchema)
 export const Admin = emergencyDb.model('Admin', basicRoleSchema)
 export const Hospital = emergencyDb.model('Hospital', basicRoleSchema)
 export const Police = emergencyDb.model('Police', basicRoleSchema)
-export const GovtDriver = emergencyDb.model('GovtDriver', basicRoleSchema)
+export const GovtDriver = emergencyDb.model('GovtDriver', govtDriverSchema)
 export const EmergencyRequest = emergencyDb.model('EmergencyRequest', emergencyRequestSchema)
 export const EmergencyAlert = emergencyDb.model('EmergencyAlert', emergencyAlertSchema)
 

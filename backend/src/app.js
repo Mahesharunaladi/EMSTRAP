@@ -3,6 +3,7 @@ import cors from 'cors'
 import express from 'express'
 import authRoutes from './routes/authRoutes.js'
 import locationRoutes from './routes/locationRoutes.js'
+import driverRoutes from './routes/driverRoutes.js'
 
 const app = express()
 const allowedOrigins = (process.env.CLIENT_ORIGIN || 'http://localhost:5173').split(',').map(origin => origin.trim())
@@ -16,6 +17,7 @@ app.get('/', (_req, res) => res.json({ success: true, message: 'EmSTraP API is r
 app.get('/api/health', (_req, res) => res.json({ success: true, message: 'EmSTraP API is healthy', data: { service: 'backend', timestamp: new Date().toISOString() } }))
 app.use('/api/auth', authRoutes)
 app.use('/api/location', locationRoutes)
+app.use('/api/driver', driverRoutes)
 
 app.use((error, _req, res, _next) => {
   console.error('[api]', error)

@@ -53,3 +53,21 @@ input[placeholder="Search an address or landmark"] { padding-left: 2.75rem !impo
 .tier-pink { background: linear-gradient(135deg, #fce7f3, #fbcfe8); color: #9d174d; }
 .tier-purple { background: linear-gradient(135deg, #ede9fe, #ddd6fe); color: #5b21b6; }
 .tier-amber { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #92400e; }
+.driver-input { display: block; width: 100%; margin-top: .5rem; border: 1px solid #cbd5e1; border-radius: .75rem; background: #fff; padding: .8rem 1rem; font-size: .875rem; outline: none; }
+.driver-input:focus, .driver-profile-field input:focus { border-color: #ef233c; box-shadow: 0 0 0 3px rgba(239,35,60,.12); }
+.driver-doc-card { display: flex; min-height: 92px; cursor: pointer; align-items: center; gap: 12px; border: 1px solid #e2e8f0; border-radius: 20px; background: #fff; padding: 14px; }
+.driver-doc-placeholder { display: grid; height: 58px; width: 58px; flex-shrink: 0; place-items: center; border-radius: 16px; background: #f1f5f9; color: #64748b; }
+.driver-doc-preview { height: 58px; width: 58px; flex-shrink: 0; border-radius: 16px; object-fit: cover; }
+.driver-map { position: relative; height: 290px; overflow: hidden; border-radius: 24px; border: 1px solid #cbd5e1; background: #dce8df; }
+.driver-map-grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(71,85,105,.12) 1px, transparent 1px), linear-gradient(90deg, rgba(71,85,105,.12) 1px, transparent 1px); background-size: 34px 34px; transform: rotate(-8deg) scale(1.15); }
+.driver-map-road { position: absolute; height: 14px; border-radius: 999px; background: #fff; box-shadow: 0 0 0 2px rgba(148,163,184,.35); transform: rotate(-25deg); }
+.road-a { left: -10%; top: 42%; width: 120%; }
+.road-b { left: 18%; top: 5%; width: 110%; transform: rotate(58deg); }
+.driver-marker { position: absolute; display: grid; height: 38px; width: 38px; place-items: center; border-radius: 999px; box-shadow: 0 4px 12px rgba(15,23,42,.22); }
+.driver-marker-you { left: 30%; top: 54%; background: #0f172a; color: #fff; }
+.driver-marker-user { right: 24%; top: 26%; background: #dc2626; color: #fff; }
+.driver-map-label { position: absolute; right: 12%; top: 14%; border-radius: 8px; background: #fff; padding: 5px 8px; font-size: 10px; font-weight: 700; box-shadow: 0 2px 8px rgba(15,23,42,.15); }
+.driver-alert { border: 1px solid #fecaca; border-radius: 22px; background: #fff1f2; padding: 16px; }
+.driver-profile-field { display: flex; align-items: center; gap: 10px; border: 1px solid #e2e8f0; border-radius: 18px; background: #fff; padding: 12px 14px; color: #64748b; font-size: 12px; font-weight: 700; }
+.driver-profile-field input { min-width: 0; flex: 1; border: 0; outline: 0; color: #0f172a; font-size: 14px; font-weight: 700; }
+.driver-profile-status { display: flex; align-items: center; gap: 12px; border: 1px solid #e2e8f0; border-radius: 18px; background: #fff; padding: 14px; }

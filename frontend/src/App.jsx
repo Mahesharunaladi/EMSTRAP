@@ -12,9 +12,16 @@ import AccountHistoryPage from './pages/mobile/AccountHistoryPage'
 import SignInPage from './pages/auth/SignInPage'
 import SignUpPage from './pages/auth/SignUpPage'
 import VerifyEmailPage from './pages/auth/VerifyEmailPage'
+import DriverPortal from './pages/driver/DriverPortal'
+import DriverDashboard from './pages/driver/DriverDashboard'
+import DriverProfile from './pages/driver/DriverProfile'
 
 function PublicRoute({ children }) {
   return children
+}
+
+function DriverRoute({ children }) {
+  return sessionStorage.getItem('emstrap_driver_session') ? children : <Navigate to="/driver" replace />
 }
 
 export default function App() {
@@ -23,6 +30,10 @@ export default function App() {
     <Route path="/signin" element={<PublicRoute><SignInPage /></PublicRoute>} />
     <Route path="/signup" element={<PublicRoute><SignUpPage /></PublicRoute>} />
     <Route path="/verify-email" element={<PublicRoute><VerifyEmailPage /></PublicRoute>} />
+    <Route path="/driver" element={<DriverPortal />} />
+    <Route path="/dashboard/driver" element={<Navigate to="/driver/dashboard" replace />} />
+    <Route path="/driver/dashboard" element={<DriverRoute><DriverDashboard /></DriverRoute>} />
+    <Route path="/driver/profile" element={<DriverRoute><DriverProfile /></DriverRoute>} />
     <Route element={<ProtectedRoute allowedRoles={['user']} />}>
       <Route path="/dashboard/user" element={<MobileHomePage />} />
       <Route path="/app" element={<MobileHomePage />} />

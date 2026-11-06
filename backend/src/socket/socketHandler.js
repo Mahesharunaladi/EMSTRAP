@@ -33,7 +33,7 @@ export function registerSocketHandlers(io) {
     socket.on('driver_location_update', async ({ driverId, emergencyId, lat, lng, heading } = {}) => {
       const location = validLocation({ lat, lng, heading })
       if (!location || !driverId || !emergencyId) return socket.emit('socket_error', { message: 'Valid active emergency and driver coordinates are required' })
-      const emergency = await EmergencyRequest.findOneAndUpdate({ _id: emergencyId, assignedDriverId: driverId, status: { $in: ['ACCEPTED', 'ARRIVED'] } }, { $set: { 'driverLocation.lat': location.lat, 'driverLocation.lng': location.lng, 'driverLocation.heading': location.heading, 'driverLocation.updatedAt': new Date() } }, { returnDocument: 'after' }).catch(() => null)
+      const emergency = await EmergencyRequest.findOneAndUpdate({ _id: emergencyId, assignedDriverId: driverId, status: { $in: ['PENDING', 'ACCEPTED', 'ARRIVED'] } }, { $set: { 'driverLocation.lat': location.lat, 'driverLocation.lng': location.lng, 'driverLocation.heading': location.heading, 'driverLocation.updatedAt': new Date() } }, { returnDocument: 'after' }).catch(() => null)
       if (!emergency) return
       const payload = { driverId, emergencyId, location }
       if (emergency.userId) io.to(userRoom(emergency.userId.toString())).emit('DRIVER_LOCATION_UPDATED', payload)

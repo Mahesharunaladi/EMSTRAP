@@ -1,0 +1,22 @@
+{
+  "name": "emstrap-backend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "check": "node --check src/server.js && node --check src/app.js && node --check src/config/db.js && node --check src/socket/socketHandler.js"
+  },
+  "dependencies": {
+    "cloudinary": "latest",
+    "cookie-parser": "latest",
+    "cors": "latest",
+    "dotenv": "latest",
+    "express": "latest",
+    "mongoose": "latest",
+    "multer": "latest",
+    "socket.io": "latest"
+  },
+  "devDependencies": {}
+}

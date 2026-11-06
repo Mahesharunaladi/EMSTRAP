@@ -8,6 +8,7 @@ import policeRoutes from './routes/policeRoutes.js'
 
 const app = express()
 const allowedOrigins = (process.env.CLIENT_ORIGIN || 'http://localhost:5173').split(',').map(origin => origin.trim())
+if (process.env.NODE_ENV !== 'production' && !allowedOrigins.includes('http://localhost:5174')) allowedOrigins.push('http://localhost:5174')
 
 app.use(cors({ origin: allowedOrigins, credentials: true }))
 app.use(express.json({ limit: '2mb' }))

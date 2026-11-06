@@ -15,7 +15,6 @@ import VerifyEmailPage from './pages/auth/VerifyEmailPage'
 import DriverPortal from './pages/driver/DriverPortal'
 import DriverDashboard from './pages/driver/DriverDashboard'
 import DriverProfile from './pages/driver/DriverProfile'
-import PoliceDashboard from './pages/police/PoliceDashboard'
 
 function PublicRoute({ children }) {
   return children
@@ -35,7 +34,6 @@ export default function App() {
     <Route path="/dashboard/driver" element={<Navigate to="/driver/dashboard" replace />} />
     <Route path="/driver/dashboard" element={<DriverRoute><DriverDashboard /></DriverRoute>} />
     <Route path="/driver/profile" element={<DriverRoute><DriverProfile /></DriverRoute>} />
-    <Route path="/police" element={<PoliceDashboard />} />
     <Route element={<ProtectedRoute allowedRoles={['user']} />}>
       <Route path="/dashboard/user" element={<MobileHomePage />} />
       <Route path="/app" element={<MobileHomePage />} />

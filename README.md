@@ -3,6 +3,8 @@ A full-stack emergency response and ambulance booking platform that enables real
 
 Frontend app is located in `frontend/`. Run `cd frontend && npm install && npm run dev` to start it.
 
+The police command dashboard runs separately at `http://localhost:5174`. Start it from `frontend/` with `npm run dev:police`.
+
 Backend API and Socket.IO server is located in `backend/`. Copy the Atlas, JWT, and SMTP values into `backend/.env`, then run `cd backend && npm install && npm run dev`.
 
 Authentication endpoints are available under `/api/auth`: registration sends a real six-digit email verification code, verification issues an HttpOnly JWT cookie, login requires a verified email, and `/me` restores the current session. For Gmail SMTP, use an App Password rather than your normal account password.

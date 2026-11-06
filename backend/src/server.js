@@ -6,9 +6,11 @@ import { connectDatabases, disconnectDatabases } from './config/db.js'
 import { registerSocketHandlers } from './socket/socketHandler.js'
 
 const port = Number(process.env.PORT || 5001)
+const clientOrigins = (process.env.CLIENT_ORIGIN || 'http://localhost:5173').split(',').map(origin => origin.trim())
+if (process.env.NODE_ENV !== 'production' && !clientOrigins.includes('http://localhost:5174')) clientOrigins.push('http://localhost:5174')
 const httpServer = http.createServer(app)
 const io = new Server(httpServer, {
-  cors: { origin: (process.env.CLIENT_ORIGIN || 'http://localhost:5173').split(',').map(origin => origin.trim()), credentials: true },
+  cors: { origin: clientOrigins, credentials: true },
   transports: ['websocket', 'polling'],
 })
 

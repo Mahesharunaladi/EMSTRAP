@@ -6,10 +6,41 @@
   --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
 }
 
-:root { color-scheme: dark; font-family: var(--font-sans); background: #020617; }
+:root { color-scheme: light; font-family: var(--font-sans); background: transparent; }
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; background: #020617; color: #e2e8f0; }
+body { margin: 0; min-width: 320px; background: transparent; color: #000; }
 button, input { font: inherit; }
 button { cursor: pointer; }
+.app-shell { background: transparent !important; color: #000 !important; }
+.app-shell [class*="bg-slate-"], .app-shell [class*="bg-gradient-"] { background: transparent !important; }
+.app-shell [class*="text-slate-"], .app-shell [class*="text-white"], .app-shell [class*="text-red-"], .app-shell [class*="text-sky-"], .app-shell [class*="text-emerald-"], .app-shell [class*="text-violet-"] { color: #000 !important; }
+.app-shell button { background: #fff !important; border: 1px solid #000 !important; color: #000 !important; }
+.app-shell button:hover { background: #f5f5f5 !important; }
+.app-shell button.bg-red-500 { background: linear-gradient(135deg, #ef233c, #c1121f) !important; border: 1px solid #8f0d19 !important; color: #fff !important; box-shadow: 0 12px 26px rgba(193, 18, 31, .3), 0 0 0 5px rgba(239, 35, 60, .1) !important; transform: translateY(0); transition: transform .2s ease, box-shadow .2s ease, background .2s ease; }
+.app-shell button.bg-red-500:hover { background: linear-gradient(135deg, #ff3b4d, #d7192b) !important; color: #fff !important; box-shadow: 0 16px 30px rgba(193, 18, 31, .38), 0 0 0 7px rgba(239, 35, 60, .12) !important; transform: translateY(-2px); }
 .glow-red { box-shadow: 0 0 36px rgba(248, 113, 113, .16); }
 .grid-glow { background-image: linear-gradient(rgba(148,163,184,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,.045) 1px, transparent 1px); background-size: 32px 32px; }
+.mobile-app button { min-height: 44px; }
+.mobile-search { min-height: 58px; border: 1px solid #dfe3e8; border-radius: 9999px; background: #fff; padding: .5rem .65rem .5rem .75rem; box-shadow: 0 6px 18px rgba(15, 23, 42, .05); }
+.mobile-action-card { position: relative; min-height: 174px; border-radius: 22px; padding: 18px; transition: transform .2s ease, box-shadow .2s ease; }
+.mobile-action-card:hover, .mobile-service-card:hover { transform: translateY(-2px); box-shadow: 0 12px 24px rgba(15, 23, 42, .1); }
+.mobile-emergency-card { background: linear-gradient(145deg, #fee2e2, #fecaca); color: #b91c1c; }
+.mobile-booking-card { background: linear-gradient(145deg, #dbeafe, #bfdbfe); color: #1d4ed8; }
+.mobile-care-card { position: relative; min-height: 180px; overflow: hidden; border-radius: 24px; background: linear-gradient(135deg, #fff, #f1f5f9); padding: 20px; box-shadow: 0 8px 24px rgba(15, 23, 42, .06); }
+.mobile-care-icon { position: absolute; bottom: -20px; right: 18px; display: grid; height: 110px; width: 110px; place-items: center; border-radius: 9999px; background: #fee2e2; color: #dc2626; transform: rotate(-12deg); }
+.mobile-service-card { min-height: 150px; border-radius: 22px; padding: 16px; text-align: left; transition: transform .2s ease, box-shadow .2s ease; }
+.mobile-service-card.col-span-2 { min-height: 135px; }
+.tone-red { background: linear-gradient(135deg, #fee2e2, #fecaca); color: #b91c1c; }
+.tone-blue { background: linear-gradient(135deg, #dbeafe, #bfdbfe); color: #1d4ed8; }
+.tone-pink { background: linear-gradient(135deg, #fce7f3, #fbcfe8); color: #be185d; }
+.tone-purple { background: linear-gradient(135deg, #ede9fe, #ddd6fe); color: #6d28d9; }
+.tone-amber { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #b45309; }
+.mobile-trip-card { border: 1px solid #e2e8f0; border-radius: 22px; background: #fff; padding: 16px; box-shadow: 0 5px 16px rgba(15, 23, 42, .04); }
+.mobile-account-row { display: flex; width: 100%; align-items: center; gap: 12px; border: 1px solid #e2e8f0; border-radius: 18px; background: #fff; padding: 10px 12px; text-align: left; }
+.mobile-booking-tier { display: block; width: 100%; border: 1px solid transparent; border-radius: 22px; padding: 16px; text-align: left; transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease; }
+.mobile-booking-tier:hover { transform: translateY(-2px); box-shadow: 0 10px 22px rgba(15, 23, 42, .08); }
+.mobile-booking-tier.selected { border-color: #0f172a; box-shadow: 0 0 0 2px #0f172a; }
+.tier-blue { background: linear-gradient(135deg, #dbeafe, #bfdbfe); color: #1e3a8a; }
+.tier-pink { background: linear-gradient(135deg, #fce7f3, #fbcfe8); color: #9d174d; }
+.tier-purple { background: linear-gradient(135deg, #ede9fe, #ddd6fe); color: #5b21b6; }
+.tier-amber { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #92400e; }

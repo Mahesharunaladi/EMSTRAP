@@ -8,7 +8,7 @@ export default function AppShell({ children, title = 'Overview' }) {
   const location = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
   const links = [{ to: '/dashboard/user', label: 'Dashboard', icon: Home }, { to: '/booking', label: 'Book ambulance', icon: Activity }]
-  return <div className="min-h-screen bg-slate-950 text-slate-100">
+  return <div className="app-shell min-h-screen bg-transparent text-black">
     <header className="sticky top-0 z-30 border-b border-slate-800/80 bg-slate-950/90 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
         <Link to="/dashboard/user" className="flex items-center gap-2.5"><span className="grid h-9 w-9 place-items-center rounded-xl bg-red-500/15 text-red-400"><Activity size={20} /></span><span className="font-display text-lg font-bold tracking-tight">Em<span className="text-red-400">STraP</span></span></Link>

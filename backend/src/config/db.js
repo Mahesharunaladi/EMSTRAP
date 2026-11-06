@@ -48,7 +48,16 @@ const mediaSchema = new mongoose.Schema({
   mimeType: String,
 }, { _id: false })
 
-const userSchema = new mongoose.Schema({ name: String, email: { type: String, index: true }, phone: String, role: String, isEmailVerified: Boolean }, { timestamps: true })
+const userSchema = new mongoose.Schema({
+  name: { type: String, required: true, trim: true },
+  email: { type: String, required: true, unique: true, lowercase: true, trim: true, index: true },
+  phone: String,
+  role: { type: String, enum: ['USER', 'GOVT_DRIVER', 'POLICE', 'HOSPITAL', 'ADMIN'], default: 'USER' },
+  passwordHash: { type: String, required: true, select: false },
+  isEmailVerified: { type: Boolean, default: false },
+  verificationCodeHash: { type: String, select: false },
+  verificationCodeExpiresAt: { type: Date, select: false },
+}, { timestamps: true })
 const basicRoleSchema = new mongoose.Schema({ name: String, email: String, phone: String, role: String }, { timestamps: true })
 const emergencyRequestSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

@@ -14,8 +14,11 @@
     "cors": "latest",
     "dotenv": "latest",
     "express": "latest",
+    "bcryptjs": "latest",
+    "jsonwebtoken": "latest",
     "mongoose": "latest",
     "multer": "latest",
+    "nodemailer": "latest",
     "socket.io": "latest"
   },
   "devDependencies": {}

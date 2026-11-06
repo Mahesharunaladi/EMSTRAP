@@ -1,0 +1,22 @@
+import { ArrowLeft, ArrowRight, MailCheck, RefreshCw } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
+import AuthLayout from '../../components/AuthLayout'
+import { useAuth } from '../../context/AuthContext'
+
+export default function VerifyEmailPage() {
+  const navigate = useNavigate()
+  const { pendingVerification, verifyEmail, resendCode } = useAuth()
+  const [code, setCode] = useState(['', '', '', '', '', ''])
+  const [seconds, setSeconds] = useState(30)
+  const [loading, setLoading] = useState(false)
+  const inputs = useRef([])
+  useEffect(() => { if (!seconds) return undefined; const timer = window.setInterval(() => setSeconds(value => value - 1), 1000); return () => window.clearInterval(timer) }, [seconds])
+  const updateCode = (value, index) => { const digit = value.replace(/\D/g, '').slice(-1); const next = [...code]; next[index] = digit; setCode(next); if (digit && index < 5) inputs.current[index + 1]?.focus() }
+  const keyDown = (event, index) => { if (event.key === 'Backspace' && !code[index] && index > 0) inputs.current[index - 1]?.focus() }
+  async function submit(event) { event.preventDefault(); const value = code.join(''); if (value.length !== 6) return toast.error('Enter the six-digit code from your email'); setLoading(true); try { await verifyEmail(value); toast.success('Email verified successfully'); navigate('/app', { replace: true }) } catch (error) { toast.error(error.response?.data?.message || error.message || 'Unable to verify email') } finally { setLoading(false) } }
+  async function resend() { try { await resendCode(); setSeconds(30); toast.success('A new verification code was sent') } catch (error) { toast.error(error.response?.data?.message || 'Unable to resend code') } }
+  if (!pendingVerification) return <AuthLayout eyebrow="Verification needed" title="Start with your email" description="Create an account first so we know where to send your verification code." footer={<>Already registered? <Link to="/signin" className="font-bold text-red-600 hover:underline">Sign in</Link></>}><Link to="/signup" className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3.5 font-bold text-white">Go to sign up <ArrowRight size={17} /></Link></AuthLayout>
+  return <AuthLayout eyebrow="Check your inbox" title="Verify your email" description={<>We sent a 6-digit code to <strong className="text-black">{pendingVerification.email}</strong>. Enter it below to activate your account.</>} footer={<>Wrong email? <Link to="/signup" className="font-bold text-red-600 hover:underline">Start over</Link></>}><div className="mb-6 grid h-14 w-14 place-items-center rounded-2xl bg-red-100 text-red-600"><MailCheck size={27} /></div><form onSubmit={submit} className="space-y-6"><div className="flex justify-between gap-2">{code.map((digit, index) => <input key={index} ref={element => { inputs.current[index] = element }} value={digit} onChange={event => updateCode(event.target.value, index)} onKeyDown={event => keyDown(event, index)} inputMode="numeric" maxLength={1} aria-label={`Verification digit ${index + 1}`} className="h-12 w-full rounded-xl border border-slate-300 bg-white text-center text-lg font-bold text-black outline-none focus:border-red-500 focus:ring-4 focus:ring-red-100" />)}</div><button disabled={loading} className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3.5 font-bold text-white shadow-lg shadow-red-600/20 transition hover:bg-red-700 disabled:opacity-60">{loading ? 'Verifying…' : 'Verify email'} {!loading && <ArrowRight size={17} />}</button><div className="flex items-center justify-between text-xs text-slate-500"><button type="button" disabled={seconds > 0} onClick={resend} className="!border-0 !bg-transparent !p-0 font-semibold text-red-600 disabled:cursor-not-allowed disabled:text-slate-400"><RefreshCw size={13} className="mr-1 inline" />Resend code</button><span>{seconds ? `Resend in 00:${String(seconds).padStart(2, '0')}` : 'You can resend now'}</span></div><Link to="/signin" className="flex items-center justify-center gap-2 text-sm font-semibold text-slate-600 hover:text-black"><ArrowLeft size={15} /> Back to sign in</Link></form></AuthLayout>
+}

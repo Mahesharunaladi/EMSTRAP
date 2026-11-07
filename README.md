@@ -12,3 +12,9 @@ Backend API and Socket.IO server is located in `backend/`. Copy the Atlas, JWT, 
 Authentication endpoints are available under `/api/auth`: registration sends a real six-digit email verification code, verification issues an HttpOnly JWT cookie, login requires a verified email, and `/me` restores the current session. For Gmail SMTP, use an App Password rather than your normal account password.
 
 The backend uses separate `EMSTRAP-Emergency` and `EMSTRAP-Booking` Mongoose connections. The emergency socket gateway supports `join_room`, `driver_location_update`, `emergency_sos_triggered`, and the frontend-compatible `emergency:dispatch` event.
+
+## Native Android app
+
+The Jetpack Compose Android client is in `android/`. Open that directory in Android Studio and sync the Gradle project. It includes an SOS map dashboard, runtime location permission requests, the backend Socket.IO dispatch flow, and emergency-specific driver assignment/location updates.
+
+Set the Google Maps Android SDK key in Android Studio's Gradle arguments as `-PmapsApiKey=YOUR_KEY`. The default backend URL is `http://10.0.2.2:5001` for an Android emulator connecting to a backend on the host machine. For a physical device, set `-PbackendBaseUrl=http://YOUR_COMPUTER_LAN_IP:5001`; use HTTPS for a production deployment. Build an APK from Android Studio with **Build > Build Bundle(s) / APK(s) > Build APK(s)**.

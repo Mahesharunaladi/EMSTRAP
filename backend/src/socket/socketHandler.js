@@ -5,6 +5,7 @@ export const ROOMS = { police: 'police_channel', govtDriver: 'govt_drivers_chann
 
 const roomForRole = role => ({ POLICE: ROOMS.police, GOVT_DRIVER: ROOMS.govtDriver, POLICE_STATION: ROOMS.police }[role])
 const userRoom = userId => userId ? `user:${userId}` : null
+const emergencyRoom = emergencyId => emergencyId ? `emergency:${emergencyId}` : null
 
 function validLocation(location) {
   const lat = Number(location?.lat); const lng = Number(location?.lng)
@@ -37,6 +38,7 @@ export function registerSocketHandlers(io) {
       if (!emergency) return
       const payload = { driverId, emergencyId, location }
       if (emergency.userId) io.to(userRoom(emergency.userId.toString())).emit('DRIVER_LOCATION_UPDATED', payload)
+      io.to(emergencyRoom(emergencyId)).emit('DRIVER_LOCATION_UPDATED', payload)
       io.to(ROOMS.police).emit('DRIVER_LOCATION_UPDATED', payload)
     })
 
@@ -52,6 +54,7 @@ export function registerSocketHandlers(io) {
     const handleSos = async (payload = {}, acknowledgement) => {
       try {
         const request = await persistEmergency({ ...payload, userId: payload.userId || socket.data.userId })
+        socket.join(emergencyRoom(request._id.toString()))
         const caller = request.userId ? await User.findById(request.userId).select('name phone').lean() : null
         const alert = { emergencyId: request._id, status: request.status, location: request.location, incidentImage: request.incidentImage, userId: caller }
         io.to(ROOMS.govtDriver).to(ROOMS.police).emit('NEW_EMERGENCY_ALERT', alert)
@@ -71,6 +74,7 @@ export function registerSocketHandlers(io) {
         const assignment = { emergencyId: emergency._id, userId: emergency.userId, status: emergency.status, driver: { id: driver._id, name: driver.name, phone: driver.phone, selfie: driver.selfie } }
         io.to(ROOMS.police).to(ROOMS.govtDriver).emit('DRIVER_ASSIGNED', assignment)
         if (emergency.userId) io.to(userRoom(emergency.userId.toString())).emit('DRIVER_ASSIGNED', assignment)
+        io.to(emergencyRoom(emergencyId)).emit('DRIVER_ASSIGNED', assignment)
       } catch (error) { socket.emit('socket_error', { message: error.message }) }
     })
     socket.on('disconnect', reason => { socket.data = {}; console.log(`[socket] ${socket.id} disconnected: ${reason}`) })

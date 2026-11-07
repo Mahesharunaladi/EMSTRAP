@@ -5,6 +5,7 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   root: resolve(process.cwd(), 'driver'),
+  publicDir: resolve(process.cwd(), 'public'),
   plugins: [react(), tailwindcss()],
   server: {
     host: '0.0.0.0',

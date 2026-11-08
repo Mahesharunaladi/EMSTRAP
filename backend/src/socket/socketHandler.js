@@ -22,11 +22,11 @@ async function socketIdentity(socket, next) {
     if (!token) return next()
     const payload = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] })
     if (payload.role === 'GOVT_DRIVER') {
-      const driver = await GovtDriver.findById(payload.sub).lean()
-      if (driver) socket.data.driver = driver
+      const driver = await GovtDriver.findById(payload.sub).select('+sessionVersion').lean()
+      if (driver && (payload.ver ?? 0) === (driver.sessionVersion ?? 0)) socket.data.driver = driver
     } else {
-      const user = await User.findById(payload.sub).lean()
-      if (user) socket.data.user = user
+      const user = await User.findById(payload.sub).select('+sessionVersion').lean()
+      if (user && user.role === payload.role && (payload.ver ?? 0) === (user.sessionVersion ?? 0)) socket.data.user = user
     }
     next()
   } catch { next() }
@@ -57,6 +57,15 @@ export function registerSocketHandlers(io) {
     const driver = socket.data.driver
     if (user) socket.join(userRoom(user._id.toString()))
     let driverRoomWatcher
+    const sessionWatcher = (user || driver) && setInterval(async () => {
+      try {
+        const current = user
+          ? await User.findById(user._id).select('+sessionVersion').lean()
+          : await GovtDriver.findById(driver._id).select('+sessionVersion').lean()
+        const original = user || driver
+        if (!current || (current.sessionVersion ?? 0) !== (original.sessionVersion ?? 0) || (user && current.role !== user.role)) socket.disconnect(true)
+      } catch { socket.disconnect(true) }
+    }, 15_000)
 
     const syncDriverRoom = async () => {
       if (!driver) return
@@ -135,6 +144,6 @@ export function registerSocketHandlers(io) {
         io.to(emergencyRoom(emergencyId)).emit('DRIVER_ASSIGNED', assignment)
       } catch { socket.emit('socket_error', { message: 'Unable to accept this emergency' }) }
     })
-    socket.on('disconnect', reason => { if (driverRoomWatcher) clearInterval(driverRoomWatcher); console.log(`[socket] ${socket.id} disconnected: ${reason}`) })
+    socket.on('disconnect', reason => { if (driverRoomWatcher) clearInterval(driverRoomWatcher); if (sessionWatcher) clearInterval(sessionWatcher); console.log(`[socket] ${socket.id} disconnected: ${reason}`) })
   })
 }

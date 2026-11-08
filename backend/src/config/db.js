@@ -56,14 +56,16 @@ const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true, lowercase: true, trim: true, index: true },
   phone: String,
   role: { type: String, enum: ['USER', 'GOVT_DRIVER', 'POLICE', 'HOSPITAL', 'ADMIN'], default: 'USER' },
+  sessionVersion: { type: Number, default: 0, select: false },
   passwordHash: { type: String, required: true, select: false },
   isEmailVerified: { type: Boolean, default: false },
   verificationCodeHash: { type: String, select: false },
   verificationCodeExpiresAt: { type: Date, select: false },
+  verificationAttempts: { type: Number, default: 0, select: false },
   currentLocation: locationSchema,
 }, { timestamps: true })
 const basicRoleSchema = new mongoose.Schema({ name: String, email: String, phone: String, role: String, stationName: String, location: locationSchema }, { timestamps: true })
-const govtDriverSchema = new mongoose.Schema({ name: { type: String, required: true, trim: true }, email: { type: String, required: true, unique: true, lowercase: true, trim: true, index: true }, phone: String, driverType: { type: String, enum: ['GOVERNMENT', 'PRIVATE'], default: 'GOVERNMENT' }, governmentId: { type: String, trim: true }, role: { type: String, default: 'GOVT_DRIVER' }, passwordHash: { type: String, required: true, select: false }, isEmailVerified: { type: Boolean, default: false }, verificationCodeHash: { type: String, select: false }, verificationCodeExpiresAt: { type: Date, select: false }, status: { type: String, enum: ['PENDING_DOCUMENTS', 'PENDING_REVIEW', 'ACTIVE', 'SUSPENDED'], default: 'PENDING_DOCUMENTS' }, selfie: mediaSchema, drivingLicense: mediaSchema, currentLocation: locationSchema }, { timestamps: true })
+const govtDriverSchema = new mongoose.Schema({ name: { type: String, required: true, trim: true }, email: { type: String, required: true, unique: true, lowercase: true, trim: true, index: true }, phone: String, driverType: { type: String, enum: ['GOVERNMENT', 'PRIVATE'], default: 'GOVERNMENT' }, governmentId: { type: String, trim: true }, role: { type: String, default: 'GOVT_DRIVER' }, sessionVersion: { type: Number, default: 0, select: false }, passwordHash: { type: String, required: true, select: false }, isEmailVerified: { type: Boolean, default: false }, verificationCodeHash: { type: String, select: false }, verificationCodeExpiresAt: { type: Date, select: false }, verificationAttempts: { type: Number, default: 0, select: false }, status: { type: String, enum: ['PENDING_DOCUMENTS', 'PENDING_REVIEW', 'ACTIVE', 'SUSPENDED'], default: 'PENDING_DOCUMENTS' }, selfie: mediaSchema, drivingLicense: mediaSchema, currentLocation: locationSchema }, { timestamps: true })
 const emergencyRequestSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   anonymous: { type: Boolean, default: false },

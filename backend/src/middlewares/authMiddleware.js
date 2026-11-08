@@ -12,8 +12,8 @@ export async function authenticate(req, res, next) {
     const token = getToken(req)
     if (!token) return res.status(401).json({ success: false, message: 'Authentication required', data: null })
     const payload = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] })
-    const user = await User.findById(payload.sub).lean()
-    if (!user || user.role !== payload.role) return res.status(401).json({ success: false, message: 'Account no longer exists', data: null })
+    const user = await User.findById(payload.sub).select('+sessionVersion').lean()
+    if (!user || user.role !== payload.role || (payload.ver ?? 0) !== (user.sessionVersion ?? 0)) return res.status(401).json({ success: false, message: 'Account no longer exists', data: null })
     req.user = user
     next()
   } catch (error) {

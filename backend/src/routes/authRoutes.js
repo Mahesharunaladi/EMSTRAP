@@ -13,5 +13,5 @@ router.patch('/location', authenticate, updateCurrentLocation)
 router.patch('/profile', authenticate, updateProfile)
 router.get('/ride-history', authenticate, rideHistory)
 router.get('/billing-history', authenticate, billingHistory)
-router.post('/logout', logout)
+router.post('/logout', authenticate, logout)
 export default router

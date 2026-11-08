@@ -19,8 +19,8 @@ export async function updateCurrentLocation(req, res, next) {
 export async function searchAddress(req, res, next) {
   try {
     const query = req.query.q?.trim()
-    if (!query || query.length < 3) return res.status(400).json({ success: false, message: 'Enter at least 3 characters to search', data: null })
-    const response = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&addressdetails=1&q=${encodeURIComponent(query)}`, { headers: { 'User-Agent': 'EmSTraP/1.0 emergency-medical-app', 'Accept-Language': 'en' } })
+    if (!query || query.length < 3 || query.length > 200) return res.status(400).json({ success: false, message: 'Enter 3 to 200 characters to search', data: null })
+    const response = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&addressdetails=1&q=${encodeURIComponent(query)}`, { headers: { 'User-Agent': 'EmSTraP/1.0 emergency-medical-app', 'Accept-Language': 'en' }, signal: AbortSignal.timeout(5000) })
     if (!response.ok) return res.status(502).json({ success: false, message: 'Address search provider is unavailable', data: null })
     const results = await response.json()
     res.json({ success: true, message: 'Address results', data: results.map(result => ({ displayName: result.display_name, lat: Number(result.lat), lng: Number(result.lon) })) })

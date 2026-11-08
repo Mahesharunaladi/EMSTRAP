@@ -20,7 +20,7 @@ export async function register(req, res, next) {
   try {
     const { name, email, password } = req.body
     const normalizedEmail = email?.trim().toLowerCase()
-    if (!name?.trim() || !normalizedEmail || !password || password.length < 8) return res.status(400).json({ success: false, message: 'Name, valid email, and an 8-character password are required', data: null })
+    if (!name?.trim() || name.trim().length > 120 || !normalizedEmail || normalizedEmail.length > 254 || !password || password.length < 8 || password.length > 128) return res.status(400).json({ success: false, message: 'Name, valid email, and an 8- to 128-character password are required', data: null })
     let user = await User.findOne({ email: normalizedEmail }).select('+passwordHash +verificationCodeHash +verificationCodeExpiresAt')
     if (user?.isEmailVerified) return res.status(409).json({ success: false, message: 'An account with this email already exists', data: null })
     const code = createCode()
@@ -55,6 +55,7 @@ export async function resendVerification(req, res, next) {
 export async function login(req, res, next) {
   try {
     const { email, password } = req.body
+    if (typeof password !== 'string' || password.length > 128) return res.status(401).json({ success: false, message: 'Invalid email or password', data: null })
     const user = await User.findOne({ email: email?.trim().toLowerCase() }).select('+passwordHash')
     if (!user || !(await bcrypt.compare(password || '', user.passwordHash))) return res.status(401).json({ success: false, message: 'Invalid email or password', data: null })
     if (!user.isEmailVerified) return res.status(403).json({ success: false, message: 'Please verify your email before signing in', data: { requiresVerification: true, email: user.email } })

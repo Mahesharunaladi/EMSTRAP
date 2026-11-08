@@ -5,11 +5,16 @@ import authRoutes from './routes/authRoutes.js'
 import locationRoutes from './routes/locationRoutes.js'
 import driverRoutes from './routes/driverRoutes.js'
 import policeRoutes from './routes/policeRoutes.js'
+import { allowedOrigins } from './config/allowedOrigins.js'
 
 const app = express()
-const allowedOrigins = (process.env.CLIENT_ORIGIN || 'http://localhost:5173,http://localhost:5174,http://localhost:5175').split(',').map(origin => origin.trim()).filter(Boolean)
 
 app.use(cors({ origin: allowedOrigins, credentials: true }))
+app.use((req, res, next) => {
+  const origin = req.get('origin')
+  if (origin && !allowedOrigins.includes(origin)) return res.status(403).json({ success: false, message: 'Origin is not allowed', data: null })
+  next()
+})
 app.use((req, res, next) => {
   res.set({ 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'no-referrer', 'Permissions-Policy': 'camera=(self), geolocation=(self), microphone=()' })
   if (process.env.NODE_ENV === 'production') res.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')

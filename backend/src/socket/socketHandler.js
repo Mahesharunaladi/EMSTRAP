@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken'
 import { EmergencyAlert, EmergencyRequest, GovtDriver, User } from '../config/db.js'
 import { uploadImage } from '../config/cloudinary.js'
+import { allowedOrigins } from '../config/allowedOrigins.js'
 
 export const ROOMS = { police: 'police_channel', govtDriver: 'govt_drivers_channel' }
 const userRoom = id => `user:${id}`
@@ -15,6 +16,8 @@ function cookieValue(cookieHeader, name) {
 
 async function socketIdentity(socket, next) {
   try {
+    const origin = socket.handshake.headers.origin
+    if (origin && !allowedOrigins.includes(origin)) return next(new Error('Origin is not allowed'))
     const token = socket.handshake.auth?.token || cookieValue(socket.handshake.headers.cookie, 'token') || cookieValue(socket.handshake.headers.cookie, 'driverToken')
     if (!token) return next()
     const payload = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] })
@@ -53,22 +56,37 @@ export function registerSocketHandlers(io) {
     const user = socket.data.user
     const driver = socket.data.driver
     if (user) socket.join(userRoom(user._id.toString()))
+    let driverRoomWatcher
 
-    socket.on('join_room', ({ role } = {}) => {
+    const syncDriverRoom = async () => {
+      if (!driver) return
+      const activeDriver = await GovtDriver.findOne({ _id: driver._id, status: 'ACTIVE', driverType: { $ne: 'PRIVATE' } }).select('_id').lean().catch(() => null)
+      if (activeDriver) socket.join(ROOMS.govtDriver)
+      else socket.leave(ROOMS.govtDriver)
+    }
+
+    socket.on('join_room', async ({ role } = {}) => {
       let room = null
-      if (role === 'GOVT_DRIVER' && driver && driver.driverType !== 'PRIVATE') room = ROOMS.govtDriver
+      if (role === 'GOVT_DRIVER' && driver) {
+        await syncDriverRoom()
+        if (socket.rooms.has(ROOMS.govtDriver)) {
+          room = ROOMS.govtDriver
+          if (!driverRoomWatcher) driverRoomWatcher = setInterval(syncDriverRoom, 30_000)
+        }
+      }
       if (role === 'POLICE' && ['POLICE', 'POLICE_STATION', 'ADMIN'].includes(user?.role)) room = ROOMS.police
       if (room) socket.join(room)
       socket.emit('room_joined', { room, success: Boolean(room) })
     })
 
     socket.on('driver_location_update', async ({ emergencyId, lat, lng, heading } = {}) => {
-      if (!driver) return socket.emit('socket_error', { message: 'Driver authentication required' })
+      const activeDriver = driver && await GovtDriver.findOne({ _id: driver._id, status: 'ACTIVE', driverType: { $ne: 'PRIVATE' } }).lean()
+      if (!activeDriver) return socket.emit('socket_error', { message: 'An approved government driver account is required' })
       const location = validLocation({ lat, lng, heading })
       if (!location || !emergencyId) return socket.emit('socket_error', { message: 'Valid active emergency and driver coordinates are required' })
-      const emergency = await EmergencyRequest.findOneAndUpdate({ _id: emergencyId, assignedDriverId: driver._id, status: { $in: ['PENDING', 'ACCEPTED', 'ARRIVED'] } }, { $set: { driverLocation: { ...location, updatedAt: new Date() } } }, { returnDocument: 'after' }).lean().catch(() => null)
+      const emergency = await EmergencyRequest.findOneAndUpdate({ _id: emergencyId, assignedDriverId: activeDriver._id, status: { $in: ['PENDING', 'ACCEPTED', 'ARRIVED'] } }, { $set: { driverLocation: { ...location, updatedAt: new Date() } } }, { returnDocument: 'after' }).lean().catch(() => null)
       if (!emergency) return
-      const payload = { driverId: driver._id, emergencyId, location }
+      const payload = { driverId: activeDriver._id, emergencyId, location }
       if (emergency.userId) io.to(userRoom(emergency.userId.toString())).emit('DRIVER_LOCATION_UPDATED', payload)
       io.to(emergencyRoom(emergencyId)).to(ROOMS.police).emit('DRIVER_LOCATION_UPDATED', payload)
     })
@@ -106,16 +124,17 @@ export function registerSocketHandlers(io) {
     socket.on('emergency:dispatch', handleSos)
 
     socket.on('driver_accept_emergency', async ({ emergencyId } = {}) => {
-      if (!driver || driver.driverType === 'PRIVATE') return socket.emit('socket_error', { message: 'Government driver authentication required' })
+      const activeDriver = driver && await GovtDriver.findOne({ _id: driver._id, status: 'ACTIVE', driverType: { $ne: 'PRIVATE' } }).lean()
+      if (!activeDriver) return socket.emit('socket_error', { message: 'An approved government driver account is required' })
       try {
-        const emergency = await EmergencyRequest.findOneAndUpdate({ _id: emergencyId, status: 'PENDING', assignedDriverId: { $exists: false } }, { $set: { status: 'ACCEPTED', assignedDriverId: driver._id } }, { returnDocument: 'after' }).lean()
+        const emergency = await EmergencyRequest.findOneAndUpdate({ _id: emergencyId, status: 'PENDING', assignedDriverId: { $exists: false } }, { $set: { status: 'ACCEPTED', assignedDriverId: activeDriver._id } }, { returnDocument: 'after' }).lean()
         if (!emergency) return socket.emit('socket_error', { message: 'Emergency is unavailable or already assigned' })
-        const assignment = { emergencyId: emergency._id, userId: emergency.userId, status: emergency.status, driver: { id: driver._id, name: driver.name, phone: driver.phone, selfie: driver.selfie } }
+        const assignment = { emergencyId: emergency._id, userId: emergency.userId, status: emergency.status, driver: { id: activeDriver._id, name: activeDriver.name, phone: activeDriver.phone, selfie: activeDriver.selfie } }
         io.to(ROOMS.police).emit('DRIVER_ASSIGNED', assignment)
         if (emergency.userId) io.to(userRoom(emergency.userId.toString())).emit('DRIVER_ASSIGNED', assignment)
         io.to(emergencyRoom(emergencyId)).emit('DRIVER_ASSIGNED', assignment)
       } catch { socket.emit('socket_error', { message: 'Unable to accept this emergency' }) }
     })
-    socket.on('disconnect', reason => console.log(`[socket] ${socket.id} disconnected: ${reason}`))
+    socket.on('disconnect', reason => { if (driverRoomWatcher) clearInterval(driverRoomWatcher); console.log(`[socket] ${socket.id} disconnected: ${reason}`) })
   })
 }

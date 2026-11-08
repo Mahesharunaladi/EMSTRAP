@@ -7,14 +7,16 @@ import driverRoutes from './routes/driverRoutes.js'
 import policeRoutes from './routes/policeRoutes.js'
 
 const app = express()
-const allowedOrigins = (process.env.CLIENT_ORIGIN || 'http://localhost:5173').split(',').map(origin => origin.trim())
-for (const origin of ['http://localhost:5174', 'http://localhost:5175']) {
-  if (!allowedOrigins.includes(origin)) allowedOrigins.push(origin)
-}
+const allowedOrigins = (process.env.CLIENT_ORIGIN || 'http://localhost:5173,http://localhost:5174,http://localhost:5175').split(',').map(origin => origin.trim()).filter(Boolean)
 
 app.use(cors({ origin: allowedOrigins, credentials: true }))
+app.use((req, res, next) => {
+  res.set({ 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'no-referrer', 'Permissions-Policy': 'camera=(self), geolocation=(self), microphone=()' })
+  if (process.env.NODE_ENV === 'production') res.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+  next()
+})
 app.use(express.json({ limit: '2mb' }))
-app.use(express.urlencoded({ extended: true }))
+app.use(express.urlencoded({ extended: true, limit: '32kb', parameterLimit: 100 }))
 app.use(cookieParser())
 
 app.get('/', (_req, res) => res.json({ success: true, message: 'EmSTraP API is running', data: { health: '/api/health', auth: '/api/auth' } }))
@@ -28,7 +30,7 @@ app.use((error, _req, res, _next) => {
   console.error('[api]', error)
     const isDatabaseError = error.name?.includes('Mongo') || error.message?.includes('before initial connection')
     const status = isDatabaseError ? 503 : (error.statusCode || 500)
-    const message = isDatabaseError ? 'Database unavailable. Check backend MongoDB configuration.' : (error.message || 'Internal server error')
+    const message = isDatabaseError ? 'Database unavailable.' : (status < 500 ? error.message : 'Internal server error')
     res.status(status).json({ success: false, message, data: null })
 })
 

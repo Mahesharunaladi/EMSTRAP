@@ -1,51 +1,83 @@
+import jwt from 'jsonwebtoken'
 import { EmergencyAlert, EmergencyRequest, GovtDriver, User } from '../config/db.js'
 import { uploadImage } from '../config/cloudinary.js'
 
 export const ROOMS = { police: 'police_channel', govtDriver: 'govt_drivers_channel' }
+const userRoom = id => `user:${id}`
+const emergencyRoom = id => `emergency:${id}`
+const sosWindows = new Map()
 
-const roomForRole = role => ({ POLICE: ROOMS.police, GOVT_DRIVER: ROOMS.govtDriver, POLICE_STATION: ROOMS.police }[role])
-const userRoom = userId => userId ? `user:${userId}` : null
-const emergencyRoom = emergencyId => emergencyId ? `emergency:${emergencyId}` : null
+function cookieValue(cookieHeader, name) {
+  const entry = cookieHeader?.split(';').map(value => value.trim()).find(value => value.startsWith(`${name}=`))
+  if (!entry) return null
+  try { return decodeURIComponent(entry.slice(name.length + 1)) } catch { return null }
+}
+
+async function socketIdentity(socket, next) {
+  try {
+    const token = socket.handshake.auth?.token || cookieValue(socket.handshake.headers.cookie, 'token') || cookieValue(socket.handshake.headers.cookie, 'driverToken')
+    if (!token) return next()
+    const payload = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] })
+    if (payload.role === 'GOVT_DRIVER') {
+      const driver = await GovtDriver.findById(payload.sub).lean()
+      if (driver) socket.data.driver = driver
+    } else {
+      const user = await User.findById(payload.sub).lean()
+      if (user) socket.data.user = user
+    }
+    next()
+  } catch { next() }
+}
 
 function validLocation(location) {
   const lat = Number(location?.lat); const lng = Number(location?.lng)
-  return Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180 ? { lat, lng, heading: Number.isFinite(Number(location?.heading)) ? Number(location.heading) : undefined } : null
+  return Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180
+    ? { lat, lng, heading: Number.isFinite(Number(location?.heading)) ? Number(location.heading) : undefined }
+    : null
 }
 
-async function persistEmergency(payload) {
+async function persistEmergency(payload, user) {
   const location = validLocation(payload.location || payload)
   if (!location) throw new Error('A valid location with lat and lng is required')
+  const incidentDetails = typeof payload.incidentDetails === 'string' ? payload.incidentDetails.trim().slice(0, 1000) : undefined
+  if (payload.image && (typeof payload.image !== 'string' || payload.image.length > 1_500_000 || !/^data:image\/(jpeg|png|webp);base64,/i.test(payload.image))) throw new Error('Incident evidence must be a JPEG, PNG, or WebP image under 1.5 MB')
   const incidentImage = payload.image ? await uploadImage(payload.image) : null
-  const request = await EmergencyRequest.create({ userId: payload.userId || undefined, anonymous: !payload.userId, location, incidentImage: incidentImage || (payload.image ? { url: payload.image } : undefined), incidentDetails: payload.incidentDetails })
+  const request = await EmergencyRequest.create({ userId: user?._id, anonymous: !user, location, incidentImage: incidentImage || undefined, incidentDetails })
   await EmergencyAlert.create({ emergencyRequestId: request._id, type: 'NEW_EMERGENCY_ALERT', recipients: [ROOMS.govtDriver, ROOMS.police], deliveredAt: new Date() })
   return request
 }
 
 export function registerSocketHandlers(io) {
+  io.use(socketIdentity)
   io.on('connection', socket => {
-    socket.on('join_room', ({ role, userId, room } = {}) => {
-      const targetRoom = room || roomForRole(role)
-      if (targetRoom) socket.join(targetRoom)
-      if (userId) { socket.data.userId = userId; socket.join(userRoom(userId)) }
-      socket.data.role = role
-      socket.emit('room_joined', { room: targetRoom, success: Boolean(targetRoom) })
+    const user = socket.data.user
+    const driver = socket.data.driver
+    if (user) socket.join(userRoom(user._id.toString()))
+
+    socket.on('join_room', ({ role } = {}) => {
+      let room = null
+      if (role === 'GOVT_DRIVER' && driver && driver.driverType !== 'PRIVATE') room = ROOMS.govtDriver
+      if (role === 'POLICE' && ['POLICE', 'POLICE_STATION', 'ADMIN'].includes(user?.role)) room = ROOMS.police
+      if (room) socket.join(room)
+      socket.emit('room_joined', { room, success: Boolean(room) })
     })
 
-    socket.on('driver_location_update', async ({ driverId, emergencyId, lat, lng, heading } = {}) => {
+    socket.on('driver_location_update', async ({ emergencyId, lat, lng, heading } = {}) => {
+      if (!driver) return socket.emit('socket_error', { message: 'Driver authentication required' })
       const location = validLocation({ lat, lng, heading })
-      if (!location || !driverId || !emergencyId) return socket.emit('socket_error', { message: 'Valid active emergency and driver coordinates are required' })
-      const emergency = await EmergencyRequest.findOneAndUpdate({ _id: emergencyId, assignedDriverId: driverId, status: { $in: ['PENDING', 'ACCEPTED', 'ARRIVED'] } }, { $set: { 'driverLocation.lat': location.lat, 'driverLocation.lng': location.lng, 'driverLocation.heading': location.heading, 'driverLocation.updatedAt': new Date() } }, { returnDocument: 'after' }).catch(() => null)
+      if (!location || !emergencyId) return socket.emit('socket_error', { message: 'Valid active emergency and driver coordinates are required' })
+      const emergency = await EmergencyRequest.findOneAndUpdate({ _id: emergencyId, assignedDriverId: driver._id, status: { $in: ['PENDING', 'ACCEPTED', 'ARRIVED'] } }, { $set: { driverLocation: { ...location, updatedAt: new Date() } } }, { returnDocument: 'after' }).lean().catch(() => null)
       if (!emergency) return
-      const payload = { driverId, emergencyId, location }
+      const payload = { driverId: driver._id, emergencyId, location }
       if (emergency.userId) io.to(userRoom(emergency.userId.toString())).emit('DRIVER_LOCATION_UPDATED', payload)
-      io.to(emergencyRoom(emergencyId)).emit('DRIVER_LOCATION_UPDATED', payload)
-      io.to(ROOMS.police).emit('DRIVER_LOCATION_UPDATED', payload)
+      io.to(emergencyRoom(emergencyId)).to(ROOMS.police).emit('DRIVER_LOCATION_UPDATED', payload)
     })
 
     socket.on('user_location_update', async ({ emergencyId, lat, lng } = {}) => {
+      if (!user) return socket.emit('socket_error', { message: 'User authentication required' })
       const location = validLocation({ lat, lng })
       if (!location || !emergencyId) return socket.emit('socket_error', { message: 'Valid emergency location is required' })
-      const emergency = await EmergencyRequest.findOneAndUpdate({ _id: emergencyId, status: { $in: ['PENDING', 'ACCEPTED', 'ARRIVED'] } }, { $set: { location: { ...location, updatedAt: new Date() } } }, { returnDocument: 'after' }).lean().catch(() => null)
+      const emergency = await EmergencyRequest.findOneAndUpdate({ _id: emergencyId, userId: user._id, status: { $in: ['PENDING', 'ACCEPTED', 'ARRIVED'] } }, { $set: { location: { ...location, updatedAt: new Date() } } }, { returnDocument: 'after' }).lean().catch(() => null)
       if (!emergency) return
       const payload = { emergencyId: emergency._id, location: emergency.location }
       io.to(ROOMS.police).to(ROOMS.govtDriver).emit('USER_LOCATION_UPDATED', payload)
@@ -53,30 +85,37 @@ export function registerSocketHandlers(io) {
 
     const handleSos = async (payload = {}, acknowledgement) => {
       try {
-        const request = await persistEmergency({ ...payload, userId: payload.userId || socket.data.userId })
+        const now = Date.now()
+        const ip = socket.handshake.address || 'unknown'
+        let window = sosWindows.get(ip)
+        if (!window || window.resetAt <= now) window = { count: 0, resetAt: now + 15 * 60 * 1000 }
+        if (++window.count > 5) return acknowledgement?.({ success: false, message: 'Too many emergency requests. Please try again shortly.' })
+        sosWindows.set(ip, window)
+        if (sosWindows.size > 10000) for (const [key, value] of sosWindows) if (value.resetAt <= now) sosWindows.delete(key)
+        const request = await persistEmergency(payload, user)
         socket.join(emergencyRoom(request._id.toString()))
-        const caller = request.userId ? await User.findById(request.userId).select('name phone').lean() : null
+        const caller = user ? { _id: user._id, name: user.name, phone: user.phone } : null
         const alert = { emergencyId: request._id, status: request.status, location: request.location, incidentImage: request.incidentImage, userId: caller }
         io.to(ROOMS.govtDriver).to(ROOMS.police).emit('NEW_EMERGENCY_ALERT', alert)
-        if (request.userId) io.to(userRoom(request.userId.toString())).emit('EMERGENCY_DISPATCH_RECEIVED', alert)
+        if (user) io.to(userRoom(user._id.toString())).emit('EMERGENCY_DISPATCH_RECEIVED', alert)
         socket.emit('emergency:created', { success: true, data: alert })
         acknowledgement?.({ success: true, data: alert })
       } catch (error) { socket.emit('socket_error', { message: error.message }); acknowledgement?.({ success: false, message: error.message }) }
     }
-
     socket.on('emergency_sos_triggered', handleSos)
     socket.on('emergency:dispatch', handleSos)
-    socket.on('driver_accept_emergency', async ({ emergencyId, driverId } = {}) => {
+
+    socket.on('driver_accept_emergency', async ({ emergencyId } = {}) => {
+      if (!driver || driver.driverType === 'PRIVATE') return socket.emit('socket_error', { message: 'Government driver authentication required' })
       try {
-        const driver = await GovtDriver.findById(driverId).lean()
-        const emergency = await EmergencyRequest.findByIdAndUpdate(emergencyId, { $set: { status: 'ACCEPTED', assignedDriverId: driverId } }, { returnDocument: 'after' }).lean()
-        if (!driver || !emergency) return socket.emit('socket_error', { message: 'Emergency or driver not found' })
+        const emergency = await EmergencyRequest.findOneAndUpdate({ _id: emergencyId, status: 'PENDING', assignedDriverId: { $exists: false } }, { $set: { status: 'ACCEPTED', assignedDriverId: driver._id } }, { returnDocument: 'after' }).lean()
+        if (!emergency) return socket.emit('socket_error', { message: 'Emergency is unavailable or already assigned' })
         const assignment = { emergencyId: emergency._id, userId: emergency.userId, status: emergency.status, driver: { id: driver._id, name: driver.name, phone: driver.phone, selfie: driver.selfie } }
-        io.to(ROOMS.police).to(ROOMS.govtDriver).emit('DRIVER_ASSIGNED', assignment)
+        io.to(ROOMS.police).emit('DRIVER_ASSIGNED', assignment)
         if (emergency.userId) io.to(userRoom(emergency.userId.toString())).emit('DRIVER_ASSIGNED', assignment)
         io.to(emergencyRoom(emergencyId)).emit('DRIVER_ASSIGNED', assignment)
-      } catch (error) { socket.emit('socket_error', { message: error.message }) }
+      } catch { socket.emit('socket_error', { message: 'Unable to accept this emergency' }) }
     })
-    socket.on('disconnect', reason => { socket.data = {}; console.log(`[socket] ${socket.id} disconnected: ${reason}`) })
+    socket.on('disconnect', reason => console.log(`[socket] ${socket.id} disconnected: ${reason}`))
   })
 }

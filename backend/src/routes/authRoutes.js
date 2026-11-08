@@ -1,12 +1,13 @@
 import { Router } from 'express'
 import { billingHistory, currentUser, login, logout, register, resendVerification, rideHistory, updateCurrentLocation, updateProfile, verifyEmail } from '../controllers/authController.js'
 import { authenticate } from '../middlewares/authMiddleware.js'
+import { rateLimit } from '../middlewares/rateLimit.js'
 
 const router = Router()
-router.post('/register', register)
-router.post('/verify-email', verifyEmail)
-router.post('/resend-verification', resendVerification)
-router.post('/login', login)
+router.post('/register', rateLimit({ max: 5 }), register)
+router.post('/verify-email', rateLimit({ max: 6 }), verifyEmail)
+router.post('/resend-verification', rateLimit({ max: 3 }), resendVerification)
+router.post('/login', rateLimit({ max: 10 }), login)
 router.get('/me', authenticate, currentUser)
 router.patch('/location', authenticate, updateCurrentLocation)
 router.patch('/profile', authenticate, updateProfile)

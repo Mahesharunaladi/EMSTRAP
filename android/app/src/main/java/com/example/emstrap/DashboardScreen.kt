@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -20,6 +21,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -51,6 +53,7 @@ private val EmstrapRed = Color(0xFFCF202E)
 fun EmstrapDashboard(
     viewModel: EmstrapViewModel = viewModel(),
     onOpenTracking: () -> Unit = {},
+    onLogout: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -108,9 +111,12 @@ fun EmstrapDashboard(
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
             Surface(shape = RoundedCornerShape(18.dp), color = EmstrapNavy.copy(alpha = .94f)) {
-                Column(Modifier.padding(horizontal = 18.dp, vertical = 14.dp)) {
-                    Text("EmSTraP", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = Color.White)
-                    Text("Emergency response", style = MaterialTheme.typography.bodyMedium, color = Color(0xFFD6E2F0))
+                Row(Modifier.fillMaxWidth().padding(start = 18.dp, end = 8.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                    Column {
+                        Text("EmSTraP", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = Color.White)
+                        Text("Emergency response", style = MaterialTheme.typography.bodyMedium, color = Color(0xFFD6E2F0))
+                    }
+                    TextButton(onClick = onLogout) { Text("Sign out", color = Color.White) }
                 }
             }
 

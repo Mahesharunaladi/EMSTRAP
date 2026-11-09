@@ -4,6 +4,7 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <application
+        android:name=".EmstrapApplication"
         android:allowBackup="false"
         android:label="EmSTraP"
         android:theme="@android:style/Theme.Material.Light.NoActionBar"

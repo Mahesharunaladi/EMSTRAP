@@ -1,12 +1,21 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+val localProperties = Properties().apply {
+    rootProject.file("local.properties").takeIf { it.isFile }?.inputStream()?.use { load(it) }
+}
+val mapsApiKey = providers.gradleProperty("mapsApiKey").orElse(localProperties.getProperty("mapsApiKey").orEmpty()).get()
+val backendBaseUrl = providers.gradleProperty("backendBaseUrl").orElse(localProperties.getProperty("backendBaseUrl").orEmpty()).get()
+
 android {
     namespace = "com.example.emstrap"
     compileSdk = 35
+    buildToolsVersion = "36.0.0"
 
     defaultConfig {
         applicationId = "com.example.emstrap"
@@ -14,13 +23,22 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
-        manifestPlaceholders["MAPS_API_KEY"] = providers.gradleProperty("mapsApiKey").orElse("").get()
-        buildConfigField("String", "BACKEND_BASE_URL", "\"${providers.gradleProperty("backendBaseUrl").orElse("http://10.0.2.2:5001").get()}\"")
+        manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
+        buildConfigField("String", "BACKEND_BASE_URL", "\"${backendBaseUrl.ifBlank { "http://10.0.2.2:5001" }}\"")
     }
 
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
     }
 }
 
@@ -34,6 +52,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.navigation:navigation-compose:2.8.5")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
@@ -41,6 +60,8 @@ dependencies {
     implementation("com.google.android.gms:play-services-maps:19.0.0")
     implementation("com.google.android.gms:play-services-location:21.3.0")
     implementation("io.socket:socket.io-client:2.1.0")
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

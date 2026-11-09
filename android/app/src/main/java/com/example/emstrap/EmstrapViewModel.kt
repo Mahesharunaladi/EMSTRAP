@@ -61,7 +61,12 @@ class EmstrapViewModel : ViewModel() {
 
     private fun getSocket(): Socket {
         socket?.let { return it }
-        return IO.socket(BuildConfig.BACKEND_BASE_URL).also { connection ->
+        val options = IO.Options().apply {
+            SessionCookieJar.cookieHeader(BuildConfig.BACKEND_BASE_URL)?.let { cookie ->
+                extraHeaders = mapOf("Cookie" to listOf(cookie))
+            }
+        }
+        return IO.socket(BuildConfig.BACKEND_BASE_URL, options).also { connection ->
             socket = connection
             connection.on(Socket.EVENT_CONNECT_ERROR) { showConnectionError() }
             connection.on("socket_error") { args ->
@@ -106,9 +111,14 @@ class EmstrapViewModel : ViewModel() {
         _uiState.value = EmergencyUiState()
     }
 
-    override fun onCleared() {
+    fun endSession() {
         socket?.disconnect()
         socket?.close()
         socket = null
+        _uiState.value = EmergencyUiState()
+    }
+
+    override fun onCleared() {
+        endSession()
     }
 }

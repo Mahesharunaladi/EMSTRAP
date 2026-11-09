@@ -1,13 +1,16 @@
 package com.example.emstrap
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -29,16 +32,29 @@ private object EmstrapRoute {
 @Composable
 fun EmstrapAppNavigation() {
     val navController = rememberNavController()
-    val viewModel: EmstrapViewModel = viewModel()
+    val emergencyViewModel: EmstrapViewModel = viewModel()
+    val authViewModel: AuthViewModel = viewModel()
+    val authState by authViewModel.state.collectAsState()
 
-    NavHost(navController = navController, startDestination = EmstrapRoute.Dashboard) {
-        composable(EmstrapRoute.Dashboard) {
-            EmstrapDashboard(viewModel = viewModel, onOpenTracking = {
-                navController.navigate(EmstrapRoute.Tracking)
-            })
+    when (authState.stage) {
+        AuthStage.LOADING -> Surface(modifier = Modifier.fillMaxSize()) {
+            Box(contentAlignment = Alignment.Center) { CircularProgressIndicator() }
         }
-        composable(EmstrapRoute.Tracking) {
-            EmergencyTrackingScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+        AuthStage.SIGN_IN, AuthStage.REGISTER, AuthStage.VERIFY -> AuthScreen(authViewModel)
+        AuthStage.AUTHENTICATED -> NavHost(navController = navController, startDestination = EmstrapRoute.Dashboard) {
+            composable(EmstrapRoute.Dashboard) {
+                EmstrapDashboard(
+                    viewModel = emergencyViewModel,
+                    onLogout = {
+                        emergencyViewModel.endSession()
+                        authViewModel.logout()
+                    },
+                    onOpenTracking = { navController.navigate(EmstrapRoute.Tracking) },
+                )
+            }
+            composable(EmstrapRoute.Tracking) {
+                EmergencyTrackingScreen(viewModel = emergencyViewModel, onBack = { navController.popBackStack() })
+            }
         }
     }
 }

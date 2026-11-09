@@ -6,6 +6,7 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   root: resolve(process.cwd(), 'police'),
   publicDir: resolve(process.cwd(), 'public'),
+  cacheDir: resolve(process.cwd(), 'node_modules/.vite-police'),
   plugins: [react(), tailwindcss()],
   server: {
     host: '0.0.0.0',

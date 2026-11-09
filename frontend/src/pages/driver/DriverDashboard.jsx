@@ -22,6 +22,7 @@ export default function DriverDashboard() {
   const [driver, setDriver] = useState(null)
   const [emergency, setEmergency] = useState(null)
   const [bookings, setBookings] = useState([])
+  const [canReceiveBookings, setCanReceiveBookings] = useState(false)
   const [online, setOnline] = useState(true)
   const [locationStatus, setLocationStatus] = useState('Location sharing starts after accepting a request')
 
@@ -35,8 +36,13 @@ export default function DriverDashboard() {
     }
     setDriver(me.value.data.data.driver)
     if (alert.status === 'fulfilled') setEmergency(alert.value.data.data.emergency)
-    if (bookingResponse.status === 'fulfilled') setBookings(bookingResponse.value.data.data.bookings || [])
-    else if (bookingResponse.reason.response?.status === 403) setBookings([])
+    if (bookingResponse.status === 'fulfilled') {
+      setBookings(bookingResponse.value.data.data.bookings || [])
+      setCanReceiveBookings(Boolean(bookingResponse.value.data.data.canReceiveBookings))
+    } else if (bookingResponse.reason.response?.status === 403) {
+      setBookings([])
+      setCanReceiveBookings(false)
+    }
   }, [])
 
   useEffect(() => {
@@ -130,8 +136,8 @@ export default function DriverDashboard() {
   }
 
   return <DriverAppShell driver={driver}>
-    <div className="flex items-center justify-between"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-red-600">Dispatch center</p><h1 className="mt-1 font-display text-3xl font-bold">Driver dashboard</h1></div><button disabled={driver?.status !== 'ACTIVE'} onClick={() => setOnline(value => !value)} className={`flex items-center gap-2 rounded-full px-3 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:bg-amber-100 disabled:text-amber-800 ${online ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'}`}><span className={`h-2 w-2 rounded-full ${driver?.status !== 'ACTIVE' ? 'bg-amber-500' : online ? 'bg-emerald-500' : 'bg-slate-400'}`} />{driver?.status !== 'ACTIVE' ? 'Pending approval' : online ? 'Online' : 'Offline'}</button></div>
-    {driver?.status !== 'ACTIVE' && <section className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950"><h2 className="font-bold">Driver account: {(driver?.status || 'PENDING_REVIEW').replaceAll('_', ' ')}</h2><p className="mt-1 text-xs leading-5">{driver?.status === 'PENDING_DOCUMENTS' ? 'Submit your selfie and driving license to finish registration.' : driver?.status === 'SUSPENDED' ? 'Your driver account is suspended. Contact the administrator for help.' : 'Your documents are awaiting approval. Booking alerts will appear here after your account is approved.'}</p></section>}
+    <div className="flex items-center justify-between"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-red-600">Dispatch center</p><h1 className="mt-1 font-display text-3xl font-bold">Driver dashboard</h1></div><button disabled={!canReceiveBookings} onClick={() => setOnline(value => !value)} className={`flex items-center gap-2 rounded-full px-3 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 ${online ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'}`}><span className={`h-2 w-2 rounded-full ${canReceiveBookings && online ? 'bg-emerald-500' : 'bg-slate-400'}`} />{canReceiveBookings ? online ? 'Online' : 'Offline' : 'Not dispatch-ready'}</button></div>
+    {driver?.status !== 'ACTIVE' && <section className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950"><h2 className="font-bold">Driver account: {(driver?.status || 'PENDING_REVIEW').replaceAll('_', ' ')}</h2><p className="mt-1 text-xs leading-5">{driver?.status === 'PENDING_DOCUMENTS' ? 'Submit your selfie and driving license before receiving rides.' : driver?.status === 'SUSPENDED' ? 'Your driver account is suspended. Contact the administrator for help.' : canReceiveBookings ? 'Approval is temporarily not required. You can receive and accept rides while your documents are pending review.' : 'Your documents are awaiting approval. Make sure your email is verified and both required documents are uploaded.'}</p></section>}
     <div className="mt-5 flex items-center gap-2 text-xs font-semibold text-emerald-700"><LocateFixed size={14} /> {locationStatus}</div>
 
     {emergency && <section className="driver-alert mt-5"><div className="flex items-start gap-3"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-red-600 text-white"><Siren size={22} /></span><div className="min-w-0"><p className="text-xs font-bold uppercase tracking-widest text-red-700">Emergency dispatch</p><h2 className="mt-1 text-lg font-bold">User needs an ambulance</h2><p className="mt-1 break-words text-xs text-slate-600">Pickup: {emergency.location?.lat?.toFixed(5)}, {emergency.location?.lng?.toFixed(5)}</p>{coords(emergency.location) && <a href={mapsUrl(emergency.location)} target="_blank" rel="noreferrer" className="mt-2 inline-block text-xs font-bold text-red-700 underline">Directions to emergency pickup</a>}</div></div><button onClick={accept} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 py-3 text-sm font-bold text-white"><Radio size={16} /> {emergency.status === 'ACCEPTED' ? 'Accepted' : 'Accept emergency'}</button></section>}

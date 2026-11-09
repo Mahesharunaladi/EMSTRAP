@@ -1,4 +1,5 @@
 import { AmbulanceBooking, BookingUser, GovtDriver } from '../config/db.js'
+import { canDriverReceiveDispatch } from '../utils/driverDispatch.js'
 
 const activeBookingStatuses = ['ACCEPTED', 'STARTED']
 const tierRates = { STANDARD: 150, PREGNANCY: 250, ICU: 300, SPECIAL: 200 }
@@ -51,9 +52,40 @@ export async function createBooking(req, res, next) {
   } catch (error) { next(error) }
 }
 
+export async function getMyBookings(req, res, next) {
+  try {
+    if (req.user.role !== 'USER') return res.status(403).json({ success: false, message: 'A user account is required to view ambulance bookings', data: null })
+    let bookings = await AmbulanceBooking.find({ authUserId: req.user._id }).sort({ createdAt: -1 }).limit(50).lean()
+    if (!bookings.length) {
+      const bookingUser = await BookingUser.findOne({ email: req.user.email }).select('_id').lean()
+      if (bookingUser) bookings = await AmbulanceBooking.find({ userId: bookingUser._id }).sort({ createdAt: -1 }).limit(50).lean()
+    }
+    const driverIds = [...new Set(bookings.map(booking => booking.assignedDriverId?.toString()).filter(Boolean))]
+    const drivers = driverIds.length
+      ? await GovtDriver.find({ _id: { $in: driverIds } }).select('name phone driverType selfie').lean()
+      : []
+    const driversById = new Map(drivers.map(driver => [driver._id.toString(), driver]))
+    const rides = bookings.map(booking => {
+      const assignedDriver = booking.assignedDriverId && driversById.get(booking.assignedDriverId.toString())
+      return {
+        ...publicBooking(booking),
+        ...(assignedDriver ? {
+          driver: {
+            name: assignedDriver.name,
+            phone: assignedDriver.phone,
+            driverType: assignedDriver.driverType,
+            photo: assignedDriver.selfie?.url || null,
+          },
+        } : {}),
+      }
+    })
+    res.json({ success: true, message: 'Your ambulance bookings', data: { bookings: rides } })
+  } catch (error) { next(error) }
+}
+
 export async function getDriverBookings(req, res, next) {
   try {
-    if (req.driver.status !== 'ACTIVE') {
+    if (!canDriverReceiveDispatch(req.driver)) {
       return res.json({
         success: true,
         message: 'Driver approval is required before receiving bookings',
@@ -76,8 +108,8 @@ export async function getDriverBookings(req, res, next) {
 
 export async function acceptDriverBooking(req, res, next) {
   try {
-    const driver = await GovtDriver.findOne({ _id: req.driver._id, status: 'ACTIVE' }).lean()
-    if (!driver) return res.status(403).json({ success: false, message: 'Driver approval is required before accepting bookings', data: null })
+    const driver = await GovtDriver.findById(req.driver._id).lean()
+    if (!canDriverReceiveDispatch(driver)) return res.status(403).json({ success: false, message: 'Driver approval or document verification is required before accepting bookings', data: null })
     const booking = await AmbulanceBooking.findOneAndUpdate(
       { _id: req.params.bookingId, status: 'PENDING', assignedDriverId: { $exists: false } },
       { $set: { status: 'ACCEPTED', assignedDriverId: driver._id, assignedDriverType: driver.driverType || 'GOVERNMENT' } },

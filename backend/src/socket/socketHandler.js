@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken'
 import { EmergencyAlert, EmergencyRequest, GovtDriver, User } from '../config/db.js'
 import { uploadImage } from '../config/cloudinary.js'
 import { allowedOrigins } from '../config/allowedOrigins.js'
+import { canDriverReceiveDispatch } from '../utils/driverDispatch.js'
 
 export const ROOMS = { police: 'police_channel', govtDriver: 'govt_drivers_channel', privateDriver: 'private_drivers_channel' }
 const userRoom = id => `user:${id}`
@@ -69,8 +70,9 @@ export function registerSocketHandlers(io) {
 
     const syncDriverRoom = async () => {
       if (!driver) return
-      const activeDriver = await GovtDriver.findOne({ _id: driver._id, status: 'ACTIVE' }).select('_id driverType').lean().catch(() => null)
-      const targetRoom = activeDriver?.driverType === 'PRIVATE' ? ROOMS.privateDriver : activeDriver ? ROOMS.govtDriver : null
+      const currentDriver = await GovtDriver.findById(driver._id).lean().catch(() => null)
+      const eligibleDriver = canDriverReceiveDispatch(currentDriver) ? currentDriver : null
+      const targetRoom = eligibleDriver?.driverType === 'PRIVATE' ? ROOMS.privateDriver : eligibleDriver ? ROOMS.govtDriver : null
       for (const room of [ROOMS.govtDriver, ROOMS.privateDriver]) {
         if (room === targetRoom) socket.join(room)
         else socket.leave(room)
@@ -93,13 +95,14 @@ export function registerSocketHandlers(io) {
     })
 
     socket.on('driver_location_update', async ({ emergencyId, lat, lng, heading } = {}) => {
-      const activeDriver = driver && await GovtDriver.findOne({ _id: driver._id, status: 'ACTIVE', driverType: { $ne: 'PRIVATE' } }).lean()
-      if (!activeDriver) return socket.emit('socket_error', { message: 'An approved government driver account is required' })
+      const currentDriver = driver && await GovtDriver.findById(driver._id).lean()
+      const eligibleDriver = currentDriver?.driverType !== 'PRIVATE' && canDriverReceiveDispatch(currentDriver) ? currentDriver : null
+      if (!eligibleDriver) return socket.emit('socket_error', { message: 'A verified government driver account is required' })
       const location = validLocation({ lat, lng, heading })
       if (!location || !emergencyId) return socket.emit('socket_error', { message: 'Valid active emergency and driver coordinates are required' })
-      const emergency = await EmergencyRequest.findOneAndUpdate({ _id: emergencyId, assignedDriverId: activeDriver._id, status: { $in: ['PENDING', 'ACCEPTED', 'ARRIVED'] } }, { $set: { driverLocation: { ...location, updatedAt: new Date() } } }, { returnDocument: 'after' }).lean().catch(() => null)
+      const emergency = await EmergencyRequest.findOneAndUpdate({ _id: emergencyId, assignedDriverId: eligibleDriver._id, status: { $in: ['PENDING', 'ACCEPTED', 'ARRIVED'] } }, { $set: { driverLocation: { ...location, updatedAt: new Date() } } }, { returnDocument: 'after' }).lean().catch(() => null)
       if (!emergency) return
-      const payload = { driverId: activeDriver._id, emergencyId, location }
+      const payload = { driverId: eligibleDriver._id, emergencyId, location }
       if (emergency.userId) io.to(userRoom(emergency.userId.toString())).emit('DRIVER_LOCATION_UPDATED', payload)
       io.to(emergencyRoom(emergencyId)).to(ROOMS.police).emit('DRIVER_LOCATION_UPDATED', payload)
     })
@@ -137,12 +140,13 @@ export function registerSocketHandlers(io) {
     socket.on('emergency:dispatch', handleSos)
 
     socket.on('driver_accept_emergency', async ({ emergencyId } = {}) => {
-      const activeDriver = driver && await GovtDriver.findOne({ _id: driver._id, status: 'ACTIVE', driverType: { $ne: 'PRIVATE' } }).lean()
-      if (!activeDriver) return socket.emit('socket_error', { message: 'An approved government driver account is required' })
+      const currentDriver = driver && await GovtDriver.findById(driver._id).lean()
+      const eligibleDriver = currentDriver?.driverType !== 'PRIVATE' && canDriverReceiveDispatch(currentDriver) ? currentDriver : null
+      if (!eligibleDriver) return socket.emit('socket_error', { message: 'A verified government driver account is required' })
       try {
-        const emergency = await EmergencyRequest.findOneAndUpdate({ _id: emergencyId, status: 'PENDING', assignedDriverId: { $exists: false } }, { $set: { status: 'ACCEPTED', assignedDriverId: activeDriver._id } }, { returnDocument: 'after' }).lean()
+        const emergency = await EmergencyRequest.findOneAndUpdate({ _id: emergencyId, status: 'PENDING', assignedDriverId: { $exists: false } }, { $set: { status: 'ACCEPTED', assignedDriverId: eligibleDriver._id } }, { returnDocument: 'after' }).lean()
         if (!emergency) return socket.emit('socket_error', { message: 'Emergency is unavailable or already assigned' })
-        const assignment = { emergencyId: emergency._id, userId: emergency.userId, status: emergency.status, driver: { id: activeDriver._id, name: activeDriver.name, phone: activeDriver.phone, selfie: activeDriver.selfie } }
+        const assignment = { emergencyId: emergency._id, userId: emergency.userId, status: emergency.status, driver: { id: eligibleDriver._id, name: eligibleDriver.name, phone: eligibleDriver.phone, selfie: eligibleDriver.selfie } }
         io.to(ROOMS.police).emit('DRIVER_ASSIGNED', assignment)
         if (emergency.userId) io.to(userRoom(emergency.userId.toString())).emit('DRIVER_ASSIGNED', assignment)
         io.to(emergencyRoom(emergencyId)).emit('DRIVER_ASSIGNED', assignment)

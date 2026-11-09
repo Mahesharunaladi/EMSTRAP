@@ -81,7 +81,26 @@ const emergencyAlertSchema = new mongoose.Schema({ emergencyRequestId: { type: m
 
 const bookingUserSchema = new mongoose.Schema({ name: String, email: String, phone: String }, { timestamps: true })
 const privateDriverSchema = new mongoose.Schema({ name: String, phone: String, isOnline: Boolean, currentLocation: locationSchema }, { timestamps: true })
-const ambulanceBookingSchema = new mongoose.Schema({ userId: { type: mongoose.Schema.Types.ObjectId, ref: 'BookingUser' }, tier: { type: String, enum: ['STANDARD', 'PREGNANCY', 'ICU', 'SPECIAL'] }, status: { type: String, enum: ['PENDING', 'ACCEPT', 'START_TRIP', 'COMPLETE_TRIP'], default: 'PENDING' }, pickup: String, destination: String, scheduledFor: Date, driverId: { type: mongoose.Schema.Types.ObjectId, ref: 'PrivateDriver' }, price: Number, paymentStatus: { type: String, enum: ['PENDING', 'PAID', 'REFUNDED'], default: 'PENDING' } }, { timestamps: true })
+const ambulanceBookingSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'BookingUser' },
+  authUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
+  customerName: { type: String, trim: true, maxlength: 120 },
+  customerPhone: { type: String, trim: true, maxlength: 30 },
+  tier: { type: String, enum: ['STANDARD', 'PREGNANCY', 'ICU', 'SPECIAL'], required: true },
+  status: { type: String, enum: ['PENDING', 'ACCEPTED', 'STARTED', 'COMPLETED', 'CANCELLED', 'ACCEPT', 'START_TRIP', 'COMPLETE_TRIP'], default: 'PENDING', index: true },
+  pickup: { type: String, required: true, trim: true, maxlength: 500 },
+  pickupLocation: { type: locationSchema, required: true },
+  destination: { type: String, required: true, trim: true, maxlength: 500 },
+  destinationLocation: { type: locationSchema, required: true },
+  driverLocation: locationSchema,
+  assignedDriverId: { type: mongoose.Schema.Types.ObjectId, ref: 'GovtDriver', index: true },
+  assignedDriverType: { type: String, enum: ['GOVERNMENT', 'PRIVATE'] },
+  scheduledFor: Date,
+  driverId: { type: mongoose.Schema.Types.ObjectId, ref: 'PrivateDriver' },
+  price: Number,
+  paymentStatus: { type: String, enum: ['PENDING', 'PAID', 'REFUNDED'], default: 'PENDING' },
+}, { timestamps: true })
+ambulanceBookingSchema.index({ status: 1, createdAt: -1 })
 
 export const User = emergencyDb.model('User', userSchema)
 export const Admin = emergencyDb.model('Admin', basicRoleSchema)

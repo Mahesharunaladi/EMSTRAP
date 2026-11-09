@@ -16,6 +16,19 @@ export async function updateCurrentLocation(req, res, next) {
   } catch (error) { next(error) }
 }
 
+export async function reverseGeocode(req, res, next) {
+  try {
+    const coordinates = parseCoordinates(req.query.lat, req.query.lng)
+    if (!coordinates) return res.status(400).json({ success: false, message: 'Valid latitude and longitude are required', data: null })
+    const url = new URL('https://nominatim.openstreetmap.org/reverse')
+    url.search = new URLSearchParams({ format: 'jsonv2', lat: String(coordinates.lat), lon: String(coordinates.lng), zoom: '18', addressdetails: '1' }).toString()
+    const response = await fetch(url, { headers: { 'User-Agent': 'EmSTraP/1.0 emergency-medical-app', 'Accept-Language': 'en' }, signal: AbortSignal.timeout(5000) })
+    if (!response.ok) return res.status(502).json({ success: false, message: 'Address lookup provider is unavailable', data: null })
+    const result = await response.json()
+    res.json({ success: true, message: 'Address found', data: { address: result.display_name || '', ...coordinates } })
+  } catch (error) { next(error) }
+}
+
 export async function searchAddress(req, res, next) {
   try {
     const query = req.query.q?.trim()

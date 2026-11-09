@@ -5,6 +5,7 @@ import authRoutes from './routes/authRoutes.js'
 import locationRoutes from './routes/locationRoutes.js'
 import driverRoutes from './routes/driverRoutes.js'
 import policeRoutes from './routes/policeRoutes.js'
+import bookingRoutes from './routes/bookingRoutes.js'
 import { allowedOrigins } from './config/allowedOrigins.js'
 
 const app = express()
@@ -29,6 +30,7 @@ app.get('/api/health', (_req, res) => res.json({ success: true, message: 'EmSTra
 app.use('/api/auth', authRoutes)
 app.use('/api/location', locationRoutes)
 app.use('/api/driver', driverRoutes)
+app.use('/api/bookings', bookingRoutes)
 app.use('/api/police', policeRoutes)
 
 app.use((error, _req, res, _next) => {

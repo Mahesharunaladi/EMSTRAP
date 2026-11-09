@@ -11,11 +11,14 @@ export function AuthProvider({ children }) {
   const [currentLocation, setCurrentLocation] = useState(null)
   const [locationRetry, setLocationRetry] = useState(0)
   const latestPosition = useRef(null)
+  const lastLocationSyncAt = useRef(0)
   useEffect(() => { api.get('/auth/me').then(({ data }) => setUser(data.data.user)).catch(() => setUser(null)).finally(() => setLoading(false)) }, [])
   useEffect(() => {
     if (!user) { setLocationStatus('signed-out'); latestPosition.current = null; return undefined }
+    if (!window.isSecureContext) { setLocationStatus('insecure-context'); return undefined }
     if (!navigator.geolocation) { setLocationStatus('unsupported'); return undefined }
     let active = true; let watchId
+    lastLocationSyncAt.current = 0
     setLocationStatus('starting')
     const useNetworkFallback = async () => {
       if (!active) return
@@ -28,7 +31,21 @@ export function AuthProvider({ children }) {
       } catch { if (active) setLocationStatus('unavailable') }
     }
     const handleLocationError = error => { if (!active) return; navigator.geolocation.clearWatch(watchId); if (error.code === 1) setLocationStatus('permission'); else useNetworkFallback() }
-    watchId = navigator.geolocation.watchPosition(({ coords }) => { latestPosition.current = { lat: coords.latitude, lng: coords.longitude, source: 'browser-gps' }; setCurrentLocation(latestPosition.current); setLocationStatus('located') }, handleLocationError, { enableHighAccuracy: false, maximumAge: 15000, timeout: 10000 })
+    watchId = navigator.geolocation.watchPosition(async ({ coords }) => {
+      const location = { lat: coords.latitude, lng: coords.longitude, source: 'browser-gps' }
+      latestPosition.current = location
+      setCurrentLocation(location)
+      setLocationStatus('located')
+      const now = Date.now()
+      if (now - lastLocationSyncAt.current < 5000) return
+      lastLocationSyncAt.current = now
+      try {
+        const { data } = await api.patch('/auth/location', location)
+        if (!active) return
+        setUser(current => current ? { ...current, currentLocation: data.data.location } : current)
+        setLocationStatus('live')
+      } catch { if (active) setLocationStatus('sync-error') }
+    }, handleLocationError, { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 })
     return () => { active = false; navigator.geolocation.clearWatch(watchId); latestPosition.current = null }
   }, [user?.id, locationRetry])
   const signIn = async (email, password) => { const { data } = await api.post('/auth/login', { email, password }); setUser(data.data.user); return data }

@@ -3,7 +3,7 @@ import { EmergencyAlert, EmergencyRequest, GovtDriver, User } from '../config/db
 import { uploadImage } from '../config/cloudinary.js'
 import { allowedOrigins } from '../config/allowedOrigins.js'
 
-export const ROOMS = { police: 'police_channel', govtDriver: 'govt_drivers_channel' }
+export const ROOMS = { police: 'police_channel', govtDriver: 'govt_drivers_channel', privateDriver: 'private_drivers_channel' }
 const userRoom = id => `user:${id}`
 const emergencyRoom = id => `emergency:${id}`
 const sosWindows = new Map()
@@ -69,17 +69,21 @@ export function registerSocketHandlers(io) {
 
     const syncDriverRoom = async () => {
       if (!driver) return
-      const activeDriver = await GovtDriver.findOne({ _id: driver._id, status: 'ACTIVE', driverType: { $ne: 'PRIVATE' } }).select('_id').lean().catch(() => null)
-      if (activeDriver) socket.join(ROOMS.govtDriver)
-      else socket.leave(ROOMS.govtDriver)
+      const activeDriver = await GovtDriver.findOne({ _id: driver._id, status: 'ACTIVE' }).select('_id driverType').lean().catch(() => null)
+      const targetRoom = activeDriver?.driverType === 'PRIVATE' ? ROOMS.privateDriver : activeDriver ? ROOMS.govtDriver : null
+      for (const room of [ROOMS.govtDriver, ROOMS.privateDriver]) {
+        if (room === targetRoom) socket.join(room)
+        else socket.leave(room)
+      }
     }
 
     socket.on('join_room', async ({ role } = {}) => {
       let room = null
-      if (role === 'GOVT_DRIVER' && driver) {
+      if (['GOVT_DRIVER', 'PRIVATE_DRIVER'].includes(role) && driver) {
         await syncDriverRoom()
-        if (socket.rooms.has(ROOMS.govtDriver)) {
-          room = ROOMS.govtDriver
+        const expectedRoom = role === 'PRIVATE_DRIVER' ? ROOMS.privateDriver : ROOMS.govtDriver
+        if (socket.rooms.has(expectedRoom)) {
+          room = expectedRoom
           if (!driverRoomWatcher) driverRoomWatcher = setInterval(syncDriverRoom, 30_000)
         }
       }

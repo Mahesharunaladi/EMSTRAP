@@ -14,6 +14,7 @@ const io = new Server(httpServer, {
   transports: ['websocket', 'polling'],
 })
 
+app.set('io', io)
 registerSocketHandlers(io)
 
 async function start() {

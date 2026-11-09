@@ -53,7 +53,13 @@ export async function createBooking(req, res, next) {
 
 export async function getDriverBookings(req, res, next) {
   try {
-    if (req.driver.status !== 'ACTIVE') return res.status(403).json({ success: false, message: 'Driver approval is required before receiving bookings', data: null })
+    if (req.driver.status !== 'ACTIVE') {
+      return res.json({
+        success: true,
+        message: 'Driver approval is required before receiving bookings',
+        data: { bookings: [], driverStatus: req.driver.status, canReceiveBookings: false },
+      })
+    }
     const bookings = await AmbulanceBooking.find({
       $or: [
         { status: 'PENDING', assignedDriverId: { $exists: false } },
@@ -64,7 +70,7 @@ export async function getDriverBookings(req, res, next) {
       ...publicBooking(booking),
       ...(String(booking.assignedDriverId || '') === String(req.driver._id) ? { customerName: booking.customerName, customerPhone: booking.customerPhone } : {}),
     }))
-    res.json({ success: true, message: 'Available ambulance bookings', data: { bookings: driverBookings } })
+    res.json({ success: true, message: 'Available ambulance bookings', data: { bookings: driverBookings, driverStatus: req.driver.status, canReceiveBookings: true } })
   } catch (error) { next(error) }
 }
 

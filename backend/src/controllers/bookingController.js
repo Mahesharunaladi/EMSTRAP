@@ -94,7 +94,8 @@ export async function getDriverBookings(req, res, next) {
     }
     const bookings = await AmbulanceBooking.find({
       $or: [
-        { status: 'PENDING', assignedDriverId: { $exists: false } },
+        // `null` matches both legacy missing values and explicit null values.
+        { status: 'PENDING', assignedDriverId: null },
         { status: { $in: activeBookingStatuses }, assignedDriverId: req.driver._id },
       ],
     }).sort({ createdAt: -1 }).limit(50).lean()
@@ -111,7 +112,8 @@ export async function acceptDriverBooking(req, res, next) {
     const driver = await GovtDriver.findById(req.driver._id).lean()
     if (!canDriverReceiveDispatch(driver)) return res.status(403).json({ success: false, message: 'Driver approval or document verification is required before accepting bookings', data: null })
     const booking = await AmbulanceBooking.findOneAndUpdate(
-      { _id: req.params.bookingId, status: 'PENDING', assignedDriverId: { $exists: false } },
+      // Atomic conditional claim: only one concurrent driver can change this row.
+      { _id: req.params.bookingId, status: 'PENDING', assignedDriverId: null },
       { $set: { status: 'ACCEPTED', assignedDriverId: driver._id, assignedDriverType: driver.driverType || 'GOVERNMENT' } },
       { returnDocument: 'after', runValidators: true },
     ).lean()
@@ -119,7 +121,8 @@ export async function acceptDriverBooking(req, res, next) {
     const io = req.app.get('io')
     const assignment = { booking: publicBooking(booking), driver: { id: driver._id, name: driver.name, phone: driver.phone, driverType: driver.driverType } }
     if (io) {
-      io.to(driverRooms[0]).to(driverRooms[1]).emit('BOOKING_ASSIGNED', assignment)
+      // Other drivers need only the claim ID so their dashboards immediately remove it.
+      io.to(driverRooms[0]).to(driverRooms[1]).emit('BOOKING_ASSIGNED', { booking: publicBooking(booking), driver: { id: driver._id } })
       if (booking.authUserId) io.to(userRoom(booking.authUserId.toString())).emit('BOOKING_DRIVER_ASSIGNED', assignment)
     }
     res.json({ success: true, message: 'Booking accepted', data: assignment })

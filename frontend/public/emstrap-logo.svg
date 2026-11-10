@@ -1,10 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 467" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -8 900 467" fill="none">
   <defs>
     <linearGradient id="blue" x1="170" y1="350" x2="710" y2="450" gradientUnits="userSpaceOnUse"><stop stop-color="#71B9F4"/><stop offset=".45" stop-color="#07539A"/><stop offset="1" stop-color="#02356D"/></linearGradient>
     <linearGradient id="red" x1="445" y1="86" x2="470" y2="219" gradientUnits="userSpaceOnUse"><stop stop-color="#FF6E66"/><stop offset="1" stop-color="#B90000"/></linearGradient>
     <linearGradient id="silver" x1="414" y1="94" x2="435" y2="199" gradientUnits="userSpaceOnUse"><stop stop-color="white"/><stop offset="1" stop-color="#B8C6D4"/></linearGradient>
   </defs>
-  <g stroke="#073D77" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
+  <g transform="translate(105 0) scale(.7)" stroke="#073D77" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
     <path d="M367 235c-48 19-81 42-94 65-18 31 4 59 49 68 81 16 236-6 325-47 54-25 76-55 58-78-11-15-36-25-70-29"/>
     <path d="M294 286c-39 28-58 57-53 82 7 38 59 58 140 60 122 3 276-39 353-97 42-31 58-65 41-91-12-18-38-30-73-37"/>
     <path d="M378 218h162l18 26-200 8z" fill="url(#blue)"/>
@@ -12,7 +12,7 @@
     <path d="M405 195l9-73c2-14 10-26 23-33l24-12-17 118z" fill="url(#silver)"/>
     <path d="M458 27V4M384 52l-17-24M532 52l18-24M357 91l-29-11M558 91l29-11" stroke-width="13"/>
   </g>
-  <text x="20" y="452" font-family="Arial,Helvetica,sans-serif" font-size="169" font-weight="900" letter-spacing="-11" fill="url(#blue)" stroke="#073D77" stroke-width="5" paint-order="stroke">EmSTraP</text>
-  <path d="M217 364h30v-30h34v30h30v34h-30v30h-34v-30h-30z" fill="#D80D16" stroke="#8D1116" stroke-width="8"/>
-  <path d="M246 372h7v-21h21v21h22v18h-22v22h-21v-22h-7z" fill="white" opacity=".94"/>
+  <text x="20" y="452" font-family="Arial,Helvetica,sans-serif" font-size="169" font-weight="900" letter-spacing="-11" fill="url(#blue)" stroke="#073D77" stroke-width="5" paint-order="stroke">E<tspan font-size="190" dx="-7">m</tspan>STraP</text>
+  <path d="M147 369h30v-30h34v30h30v34h-30v30h-34v-30h-30z" fill="#D80D16" stroke="#8D1116" stroke-width="8"/>
+  <path d="M176 377h7v-21h21v21h22v18h-22v22h-21v-22h-7z" fill="white" opacity=".94"/>
 </svg>

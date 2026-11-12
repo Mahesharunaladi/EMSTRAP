@@ -29,7 +29,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 
 @Composable
 fun AuthScreen(viewModel: AuthViewModel) {
@@ -44,7 +43,7 @@ fun AuthScreen(viewModel: AuthViewModel) {
             modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 36.dp),
             verticalArrangement = Arrangement.Center,
         ) {
-            EmstrapLogo(modifier = Modifier.width(190.dp), emblemWidth = 180.dp, wordmarkSize = 30.sp)
+            EmstrapLogo(modifier = Modifier.width(190.dp), emblemWidth = 180.dp)
             Text("Emergency response, connected.", style = MaterialTheme.typography.bodyLarge)
             Spacer(Modifier.height(28.dp))
 

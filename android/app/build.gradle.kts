@@ -17,6 +17,9 @@ android {
     compileSdk = 36
     buildToolsVersion = "36.0.0"
 
+    // Use the portal's logo file directly so Android and web stay visually identical.
+    sourceSets.getByName("main").assets.srcDir("../../frontend/public")
+
     defaultConfig {
         applicationId = "com.example.emstrap"
         minSdk = 26

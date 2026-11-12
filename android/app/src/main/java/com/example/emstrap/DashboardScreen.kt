@@ -35,7 +35,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.android.gms.maps.CameraUpdateFactory
@@ -113,7 +112,7 @@ fun EmstrapDashboard(
         ) {
             Surface(shape = RoundedCornerShape(18.dp), color = Color.White.copy(alpha = .97f)) {
                 Row(Modifier.fillMaxWidth().padding(start = 18.dp, end = 8.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                    EmstrapLogo(emblemWidth = 92.dp, wordmarkSize = 18.sp)
+                    EmstrapLogo(emblemWidth = 92.dp)
                     TextButton(onClick = onLogout) { Text("Sign out", color = EmstrapNavy) }
                 }
             }

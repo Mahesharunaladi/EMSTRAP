@@ -7,6 +7,8 @@
         android:name=".EmstrapApplication"
         android:allowBackup="false"
         android:label="EmSTraP"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@android:style/Theme.Material.Light.NoActionBar"
         android:usesCleartextTraffic="false">
         <meta-data

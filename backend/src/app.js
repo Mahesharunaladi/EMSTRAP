@@ -6,14 +6,14 @@ import locationRoutes from './routes/locationRoutes.js'
 import driverRoutes from './routes/driverRoutes.js'
 import policeRoutes from './routes/policeRoutes.js'
 import bookingRoutes from './routes/bookingRoutes.js'
-import { allowedOrigins } from './config/allowedOrigins.js'
+import { corsOriginDelegate, isAllowedOrigin } from './config/allowedOrigins.js'
 
 const app = express()
 
-app.use(cors({ origin: allowedOrigins, credentials: true }))
+app.use(cors({ origin: corsOriginDelegate, credentials: true }))
 app.use((req, res, next) => {
   const origin = req.get('origin')
-  if (origin && !allowedOrigins.includes(origin)) return res.status(403).json({ success: false, message: 'Origin is not allowed', data: null })
+  if (origin && !isAllowedOrigin(origin)) return res.status(403).json({ success: false, message: 'Origin is not allowed', data: null })
   next()
 })
 app.use((req, res, next) => {

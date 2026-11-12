@@ -4,12 +4,12 @@ import { Server } from 'socket.io'
 import app from './app.js'
 import { connectDatabases, disconnectDatabases } from './config/db.js'
 import { registerSocketHandlers } from './socket/socketHandler.js'
-import { allowedOrigins } from './config/allowedOrigins.js'
+import { corsOriginDelegate } from './config/allowedOrigins.js'
 
 const port = Number(process.env.PORT || 5001)
 const httpServer = http.createServer(app)
 const io = new Server(httpServer, {
-  cors: { origin: allowedOrigins, credentials: true },
+  cors: { origin: corsOriginDelegate, credentials: true },
   maxHttpBufferSize: 2_000_000,
   transports: ['websocket', 'polling'],
 })

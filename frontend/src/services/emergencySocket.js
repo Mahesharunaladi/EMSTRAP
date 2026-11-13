@@ -77,6 +77,14 @@ export function sendDriverLocation(payload) { connect(); socket.emit('driver_loc
 export function sendUserLocation(payload) { connect(); socket.emit('user_location_update', payload) }
 export function onEmergencyCreated(callback) { connect(); socket.on('emergency:created', callback); return () => socket.off('emergency:created', callback) }
 export function onDriverLocationUpdated(callback) { connect(); socket.on('DRIVER_LOCATION_UPDATED', callback); return () => socket.off('DRIVER_LOCATION_UPDATED', callback) }
-export function acceptEmergency(emergencyId) { connect(); socket.emit('driver_accept_emergency', { emergencyId }) }
+export async function acceptEmergency(emergencyId) {
+  try {
+    const { data } = await api.post(`/driver/emergency/${emergencyId}/accept`)
+    return data.data
+  } catch (err) {
+    connect()
+    socket.emit('driver_accept_emergency', { emergencyId })
+  }
+}
 export function joinPoliceRoom(onAlert, onAssignment, onDriverLocation, onUserLocation) { connect(); socket.emit('join_room', { role: 'POLICE' }); if (onAlert) socket.on('NEW_EMERGENCY_ALERT', onAlert); if (onAssignment) socket.on('DRIVER_ASSIGNED', onAssignment); if (onDriverLocation) socket.on('DRIVER_LOCATION_UPDATED', onDriverLocation); if (onUserLocation) socket.on('USER_LOCATION_UPDATED', onUserLocation); return () => { if (onAlert) socket.off('NEW_EMERGENCY_ALERT', onAlert); if (onAssignment) socket.off('DRIVER_ASSIGNED', onAssignment); if (onDriverLocation) socket.off('DRIVER_LOCATION_UPDATED', onDriverLocation); if (onUserLocation) socket.off('USER_LOCATION_UPDATED', onUserLocation) } }
 export function onUserLocationUpdated(callback) { connect(); socket.on('USER_LOCATION_UPDATED', callback); return () => socket.off('USER_LOCATION_UPDATED', callback) }

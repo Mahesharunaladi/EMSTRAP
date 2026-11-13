@@ -118,27 +118,49 @@ export default function DriverDashboard() {
     if (!driver?.id || !isGovtDriver || !emergency || emergency.status !== 'ACCEPTED' || !emergencyId || !navigator.geolocation) {
       return undefined
     }
+
+    if (typeof window !== 'undefined' && sessionStorage.getItem('emstrap_driver_corelocation_unavailable') === 'true') {
+      setLocationStatus('Ambulance dispatched · Responding to incident')
+      return undefined
+    }
+
     let active = true
     let lastSent = 0
-    const watchId = navigator.geolocation.watchPosition(
-      ({ coords: position }) => {
-        const now = Date.now()
-        if (now - lastSent < 5000) return
-        lastSent = now
-        sendDriverLocation({
-          emergencyId,
-          lat: position.latitude,
-          lng: position.longitude,
-          heading: position.heading,
-        })
-        if (active) setLocationStatus('Live ambulance location broadcasting to patient & police')
-      },
-      error => {
-        if (active) setLocationStatus(error.code === 1 ? 'Allow location access to broadcast your position' : 'Broadcasting location...')
-      },
-      { enableHighAccuracy: false, maximumAge: 5000, timeout: 20000 },
+    let watchId = null
+
+    const handleSuccess = ({ coords: position }) => {
+      const now = Date.now()
+      if (now - lastSent < 5000) return
+      lastSent = now
+      sendDriverLocation({
+        emergencyId,
+        lat: position.latitude,
+        lng: position.longitude,
+        heading: position.heading,
+      })
+      if (active) setLocationStatus('Live ambulance location broadcasting to patient & police')
+    }
+
+    const handleError = error => {
+      if (!active) return
+      if (error.code === 2) {
+        try { sessionStorage.setItem('emstrap_driver_corelocation_unavailable', 'true') } catch (_) {}
+        if (watchId) {
+          navigator.geolocation.clearWatch(watchId)
+          watchId = null
+        }
+        setLocationStatus('Ambulance dispatched · Responding to incident')
+        return
+      }
+      setLocationStatus(error.code === 1 ? 'Allow location access to broadcast your position' : 'Broadcasting location...')
+    }
+
+    watchId = navigator.geolocation.watchPosition(
+      handleSuccess,
+      handleError,
+      { enableHighAccuracy: false, maximumAge: 10000, timeout: 10000 },
     )
-    return () => { active = false; navigator.geolocation.clearWatch(watchId) }
+    return () => { active = false; if (watchId) navigator.geolocation.clearWatch(watchId) }
   }, [driver?.id, isGovtDriver, emergency?._id, emergency?.emergencyId, emergency?.status])
 
   // Live location sharing for private ambulance booking (Private Driver)
@@ -153,9 +175,13 @@ export default function DriverDashboard() {
       setLocationStatus('Open this portal over HTTPS or localhost to share live GPS')
       return undefined
     }
+    if (typeof window !== 'undefined' && sessionStorage.getItem('emstrap_driver_corelocation_unavailable') === 'true') {
+      return undefined
+    }
     let active = true
     let lastSentAt = 0
-    const watchId = navigator.geolocation.watchPosition(
+    let watchId = null
+    watchId = navigator.geolocation.watchPosition(
       ({ coords: position }) => {
         const now = Date.now()
         if (now - lastSentAt < 5000) return
@@ -165,19 +191,31 @@ export default function DriverDashboard() {
           .catch(() => { if (active) setLocationStatus('Unable to share live location') })
       },
       error => {
-        if (active) setLocationStatus(error.code === 1 ? 'Allow location access to share your live position' : 'Sharing position with rider')
+        if (!active) return
+        if (error.code === 2) {
+          try { sessionStorage.setItem('emstrap_driver_corelocation_unavailable', 'true') } catch (_) {}
+          if (watchId) {
+            navigator.geolocation.clearWatch(watchId)
+            watchId = null
+          }
+        }
+        setLocationStatus(error.code === 1 ? 'Allow location access to share your live position' : 'Sharing position with rider')
       },
-      { enableHighAccuracy: false, maximumAge: 5000, timeout: 20000 },
+      { enableHighAccuracy: false, maximumAge: 10000, timeout: 10000 },
     )
-    return () => { active = false; navigator.geolocation.clearWatch(watchId) }
+    return () => { active = false; if (watchId) navigator.geolocation.clearWatch(watchId) }
   }, [driver?.id, isPrivateDriver, activeBooking?._id])
 
-  const accept = () => {
+  const accept = async () => {
     const emergencyId = emergency?._id || emergency?.emergencyId
     if (!emergencyId || !driver?.id) return
-    acceptEmergency(emergencyId, driver.id)
-    setEmergency(current => ({ ...current, status: 'ACCEPTED', assignedDriverId: driver.id }))
-    toast.success('Emergency accepted')
+    try {
+      setEmergency(current => ({ ...current, status: 'ACCEPTED', assignedDriverId: driver.id }))
+      await acceptEmergency(emergencyId)
+      toast.success('Emergency accepted · Responding to incident')
+    } catch (err) {
+      toast.error(err.message || 'Unable to accept emergency')
+    }
   }
 
   async function acceptBooking(booking) {

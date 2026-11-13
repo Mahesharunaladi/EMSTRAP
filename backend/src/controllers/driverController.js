@@ -26,3 +26,48 @@ export async function uploadDriverDocuments(req, res, next) { try { const { self
 export async function updateDriverProfile(req, res, next) { try { const updates = {}; if (typeof req.body.name === 'string' && req.body.name.trim()) updates.name = req.body.name.trim(); if (typeof req.body.phone === 'string') updates.phone = req.body.phone.trim(); const driver = await GovtDriver.findByIdAndUpdate(req.driver._id, { $set: updates }, { returnDocument: 'after' }).lean(); res.json({ success: true, message: 'Driver profile updated', data: { driver: driverPublic(driver) } }) } catch (error) { next(error) } }
 export async function updateDriverLocation(req, res, next) { try { if (!canDriverReceiveDispatch(req.driver) || req.driver.driverType === 'PRIVATE') return res.status(403).json({ success: false, message: 'An approved government driver account is required', data: null }); const lat = Number(req.body.lat); const lng = Number(req.body.lng); if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180 || !req.body.emergencyId) return res.status(400).json({ success: false, message: 'Valid coordinates and active emergency are required', data: null }); const location = { lat, lng, source: req.body.source || 'browser-gps', updatedAt: new Date() }; const emergency = await EmergencyRequest.findOneAndUpdate({ _id: req.body.emergencyId, assignedDriverId: req.driver._id, status: { $in: ['PENDING', 'ACCEPTED', 'ARRIVED'] } }, { $set: { driverLocation: location } }, { returnDocument: 'after' }).lean(); if (!emergency) return res.status(403).json({ success: false, message: 'Location sharing is limited to emergencies assigned to this driver', data: null }); const driver = await GovtDriver.findByIdAndUpdate(req.driver._id, { $set: { currentLocation: location } }, { returnDocument: 'after' }).lean(); res.json({ success: true, message: 'Driver location updated', data: { location: driver.currentLocation } }) } catch (error) { next(error) } }
 export async function activeEmergency(req, res, next) { try { let emergency = null; if (canDriverReceiveDispatch(req.driver) && req.driver.driverType !== 'PRIVATE') { emergency = await EmergencyRequest.findOne({ assignedDriverId: req.driver._id, status: { $in: ['PENDING', 'ACCEPTED', 'ARRIVED'] } }).sort({ createdAt: -1 }).lean(); if (!emergency) emergency = await EmergencyRequest.findOne({ status: 'PENDING', assignedDriverId: { $exists: false } }).sort({ createdAt: -1 }).lean() } res.json({ success: true, message: 'Active emergency', data: { emergency } }) } catch (error) { next(error) } }
+
+export async function acceptDriverEmergency(req, res, next) {
+  try {
+    const driver = req.driver
+    if (!driver || driver.driverType === 'PRIVATE' || !canDriverReceiveDispatch(driver)) {
+      return res.status(403).json({ success: false, message: 'A verified government driver account is required', data: null })
+    }
+    const { emergencyId } = req.params
+    const emergency = await EmergencyRequest.findOneAndUpdate(
+      { _id: emergencyId, status: 'PENDING', assignedDriverId: { $exists: false } },
+      { $set: { status: 'ACCEPTED', assignedDriverId: driver._id } },
+      { returnDocument: 'after' }
+    ).lean()
+
+    if (!emergency) {
+      const existing = await EmergencyRequest.findOne({ _id: emergencyId, assignedDriverId: driver._id }).lean()
+      if (existing) {
+        return res.json({ success: true, message: 'Emergency already accepted', data: { emergency: existing } })
+      }
+      return res.status(409).json({ success: false, message: 'Emergency is unavailable or already assigned', data: null })
+    }
+
+    const assignment = {
+      emergencyId: emergency._id,
+      userId: emergency.userId,
+      status: emergency.status,
+      driver: { id: driver._id, name: driver.name, phone: driver.phone, selfie: driver.selfie }
+    }
+
+    const io = req.app.get('io')
+    if (io) {
+      const ROOMS = { police: 'police_channel', govtDriver: 'govt_drivers_channel' }
+      const userRoom = id => `user:${id}`
+      const emergencyRoom = id => `emergency:${id}`
+      io.to(ROOMS.police).emit('DRIVER_ASSIGNED', assignment)
+      if (emergency.userId) io.to(userRoom(emergency.userId.toString())).emit('DRIVER_ASSIGNED', assignment)
+      io.to(emergencyRoom(emergency._id.toString())).emit('DRIVER_ASSIGNED', assignment)
+    }
+
+    return res.json({ success: true, message: 'Emergency accepted', data: { emergency } })
+  } catch (error) {
+    next(error)
+  }
+}
+

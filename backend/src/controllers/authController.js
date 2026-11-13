@@ -13,7 +13,8 @@ const createCode = () => String(crypto.randomInt(100000, 1000000))
 
 function issueSession(res, user) {
   const token = jwt.sign({ sub: user._id.toString(), role: user.role, ver: user.sessionVersion || 0 }, process.env.JWT_SECRET, { expiresIn: '7d' })
-  res.cookie('token', token, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: COOKIE_MAX_AGE, path: '/' })
+  const isProd = process.env.NODE_ENV === 'production'
+  res.cookie('token', token, { httpOnly: true, secure: isProd, sameSite: isProd ? 'none' : 'lax', maxAge: COOKIE_MAX_AGE, path: '/' })
 }
 
 export async function register(req, res, next) {
@@ -64,7 +65,7 @@ export async function login(req, res, next) {
 }
 
 export async function currentUser(req, res) { res.json({ success: true, message: 'Current user', data: { user: publicUser(req.user) } }) }
-export async function logout(req, res, next) { try { await User.updateOne({ _id: req.user._id }, { $inc: { sessionVersion: 1 } }); res.clearCookie('token', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' }); res.json({ success: true, message: 'Signed out successfully', data: null }) } catch (error) { next(error) } }
+export async function logout(req, res, next) { try { const isProd = process.env.NODE_ENV === 'production'; await User.updateOne({ _id: req.user._id }, { $inc: { sessionVersion: 1 } }); res.clearCookie('token', { httpOnly: true, secure: isProd, sameSite: isProd ? 'none' : 'lax', path: '/' }); res.json({ success: true, message: 'Signed out successfully', data: null }) } catch (error) { next(error) } }
 export { updateCurrentLocation }
 
 export async function updateProfile(req, res, next) {

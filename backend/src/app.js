@@ -9,6 +9,7 @@ import bookingRoutes from './routes/bookingRoutes.js'
 import { corsOriginDelegate, isAllowedOrigin } from './config/allowedOrigins.js'
 
 const app = express()
+app.set('trust proxy', 1)
 
 app.use(cors({ origin: corsOriginDelegate, credentials: true }))
 app.use((req, res, next) => {

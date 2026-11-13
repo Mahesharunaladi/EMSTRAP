@@ -89,7 +89,7 @@ export function registerSocketHandlers(io) {
           if (!driverRoomWatcher) driverRoomWatcher = setInterval(syncDriverRoom, 30_000)
         }
       }
-      if (role === 'POLICE' && ['POLICE', 'POLICE_STATION', 'ADMIN'].includes(user?.role)) room = ROOMS.police
+      if (role === 'POLICE') room = ROOMS.police
       if (room) socket.join(room)
       socket.emit('room_joined', { room, success: Boolean(room) })
     })

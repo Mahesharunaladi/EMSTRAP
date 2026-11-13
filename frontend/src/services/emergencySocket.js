@@ -5,7 +5,15 @@ let socketUrl = (import.meta.env.VITE_SOCKET_URL && import.meta.env.VITE_SOCKET_
 if (socketUrl.includes('emstrap-backend.onrender.com') && !socketUrl.includes('emstrap-backend-utuo.onrender.com')) {
   socketUrl = socketUrl.replace('emstrap-backend.onrender.com', 'emstrap-backend-utuo.onrender.com')
 }
-const socket = io(socketUrl, { autoConnect: false, transports: ['websocket'], withCredentials: true })
+const socket = io(socketUrl, {
+  autoConnect: false,
+  transports: ['polling', 'websocket'],
+  withCredentials: true,
+  auth: (cb) => {
+    const token = typeof window !== 'undefined' ? (localStorage.getItem('emstrap_token') || localStorage.getItem('emstrap_driver_token')) : null
+    cb({ token })
+  }
+})
 
 function connect() { if (!socket.connected) socket.connect(); return socket }
 

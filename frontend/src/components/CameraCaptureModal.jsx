@@ -16,17 +16,37 @@ export default function CameraCaptureModal({ onClose, onCaptured, fallbackLocati
   const streamRef = useRef(null)
   const fileRef = useRef(null)
   const [preview, setPreview] = useState(null)
-  const [location, setLocation] = useState(null)
+  const [location, setLocation] = useState(() => fallbackLocation || null)
   const [cameraState, setCameraState] = useState('starting')
   const [sending, setSending] = useState(false)
 
   useEffect(() => {
     let active = true
-    navigator.geolocation?.getCurrentPosition(
-      ({ coords }) => active && setLocation({ lat: coords.latitude, lng: coords.longitude }),
-      () => {},
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 15000 },
-    )
+
+    const getPosition = (highAccuracy = false) => {
+      if (!navigator.geolocation) {
+        if (fallbackLocation && active) setLocation(fallbackLocation)
+        return
+      }
+      navigator.geolocation.getCurrentPosition(
+        ({ coords }) => {
+          if (active) setLocation({ lat: coords.latitude, lng: coords.longitude, source: 'browser-gps' })
+        },
+        () => {
+          if (active) {
+            if (fallbackLocation) {
+              setLocation(fallbackLocation)
+            } else if (highAccuracy) {
+              getPosition(false)
+            }
+          }
+        },
+        { enableHighAccuracy: highAccuracy, timeout: 8000, maximumAge: 30000 },
+      )
+    }
+
+    getPosition(false)
+
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
       setCameraState('file-camera')
     } else {
@@ -45,7 +65,7 @@ export default function CameraCaptureModal({ onClose, onCaptured, fallbackLocati
       active = false
       streamRef.current?.getTracks().forEach(track => track.stop())
     }
-  }, [])
+  }, [fallbackLocation])
 
   const capture = () => {
     const video = videoRef.current
@@ -75,13 +95,23 @@ export default function CameraCaptureModal({ onClose, onCaptured, fallbackLocati
   const submit = async () => {
     if (!preview || sending) return
     const emergencyLocation = location || fallbackLocation
-    if (!emergencyLocation || emergencyLocation.source === 'network-approximation' || !Number.isFinite(Number(emergencyLocation.lat)) || !Number.isFinite(Number(emergencyLocation.lng))) {
-      toast.error('A precise GPS fix is required for an SOS. Open the app over HTTPS or localhost, allow location access, and retry.')
+    const lat = Number(emergencyLocation?.lat)
+    const lng = Number(emergencyLocation?.lng)
+
+    if (!emergencyLocation || !Number.isFinite(lat) || !Number.isFinite(lng)) {
+      toast.error('Location is required for an SOS. Please enable location on your device.')
       return
     }
+
+    const cleanLocation = {
+      lat,
+      lng,
+      source: emergencyLocation.source || 'browser-gps',
+    }
+
     setSending(true)
     try {
-      await onCaptured({ image: preview, location: emergencyLocation, capturedAt: new Date().toISOString() })
+      await onCaptured({ image: preview, location: cleanLocation, capturedAt: new Date().toISOString() })
       streamRef.current?.getTracks().forEach(track => track.stop())
     } catch (error) {
       toast.error(error.message || 'Could not send the emergency. Please try again.')
@@ -90,10 +120,12 @@ export default function CameraCaptureModal({ onClose, onCaptured, fallbackLocati
     }
   }
 
+  const effectiveLocation = location || fallbackLocation
+
   return <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/85 p-0 backdrop-blur-sm sm:items-center sm:p-4"><div className="w-full max-w-lg overflow-hidden rounded-t-3xl border border-slate-700 bg-slate-900 sm:rounded-3xl">
     <div className="flex items-center justify-between border-b border-slate-800 px-5 py-4"><div><p className="text-[11px] font-bold uppercase tracking-[.18em] text-red-400">Emergency evidence</p><h2 className="font-display text-lg font-bold text-white">Capture incident photo</h2></div><button onClick={onClose} aria-label="Close camera" className="rounded-full p-2 text-slate-400 hover:bg-slate-800"><X size={20} /></button></div>
     <div className="relative aspect-[4/3] bg-slate-950"><video ref={videoRef} autoPlay playsInline muted onLoadedData={() => setCameraState('ready')} onCanPlay={() => setCameraState('ready')} className={`h-full w-full object-cover ${preview ? 'hidden' : ''}`} /><img src={preview || ''} alt="Incident preview" className={`h-full w-full object-cover ${preview ? '' : 'hidden'}`} />{!preview && cameraState !== 'ready' && <div className="absolute inset-0 grid place-items-center px-8 text-center text-sm text-white/80">{cameraState === 'starting' ? 'Starting camera…' : 'Tap the camera button to open your phone camera.'}</div>}{!preview && cameraState === 'ready' && <div className="pointer-events-none absolute inset-10 rounded-2xl border border-white/40" />}{!preview && cameraState === 'ready' && <p className="absolute bottom-4 left-0 right-0 text-center text-xs text-white/80">Center the incident in the frame</p>}</div>
-    <div className="flex items-center gap-3 border-b border-slate-800 px-5 py-4 text-xs text-slate-400"><MapPin size={15} className="text-emerald-400" /><span>{location ? `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}` : window.isSecureContext ? 'Waiting for GPS permission' : 'GPS requires HTTPS or localhost'}</span><span className="ml-auto flex items-center gap-1 text-emerald-400"><span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />{location ? 'GPS ready' : 'GPS required for SOS'}</span></div>
+    <div className="flex items-center gap-3 border-b border-slate-800 px-5 py-4 text-xs text-slate-400"><MapPin size={15} className={effectiveLocation ? "text-emerald-400" : "text-amber-400"} /><span>{effectiveLocation ? `${effectiveLocation.lat.toFixed(4)}, ${effectiveLocation.lng.toFixed(4)}` : window.isSecureContext ? 'Detecting location…' : 'GPS requires HTTPS'}</span><span className="ml-auto flex items-center gap-1 text-emerald-400"><span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />{effectiveLocation ? 'Location ready' : 'Detecting location'}</span></div>
     <div className="flex items-center justify-center gap-5 p-5">{preview ? <><button disabled={sending} onClick={() => setPreview(null)} aria-label="Retake photo" className="grid h-12 w-12 place-items-center rounded-full bg-slate-800 text-slate-300 disabled:opacity-50"><RotateCcw size={19} /></button><button disabled={sending} onClick={submit} className="flex h-12 items-center gap-2 rounded-full bg-red-500 px-7 font-bold text-white shadow-lg shadow-red-950/50 disabled:opacity-60"><Check size={18} /> {sending ? 'Sending…' : 'Send SOS'}</button></> : <button onClick={() => cameraState === 'ready' ? capture() : fileRef.current?.click()} aria-label="Open camera" className="grid h-16 w-16 place-items-center rounded-full border-4 border-slate-700 bg-red-500 text-white shadow-lg shadow-red-950/50"><Camera size={25} /></button>}<button onClick={() => fileRef.current?.click()} aria-label="Choose incident photo" className="grid h-12 w-12 place-items-center rounded-full bg-slate-800 text-slate-300"><ImagePlus size={19} /></button><input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={choosePhoto} className="hidden" /></div>
   </div></div>
 }

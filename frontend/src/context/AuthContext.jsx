@@ -88,11 +88,28 @@ export function AuthProvider({ children }) {
     startTracking(false)
     return () => { active = false; if (watchId) navigator.geolocation.clearWatch(watchId); latestPosition.current = null }
   }, [user?.id, locationRetry])
-  const signIn = async (email, password) => { const { data } = await api.post('/auth/login', { email, password }); setUser(data.data.user); return data }
+  const signIn = async (email, password) => {
+    const { data } = await api.post('/auth/login', { email, password })
+    if (data.data?.token) localStorage.setItem('emstrap_token', data.data.token)
+    setUser(data.data.user)
+    return data
+  }
   const startSignUp = async (name, email, password) => { const { data } = await api.post('/auth/register', { name, email, password }); const pending = { name, email }; sessionStorage.setItem('emstrap_pending_verification', JSON.stringify(pending)); setPendingVerification(pending); return data }
-  const verifyEmail = async code => { if (!pendingVerification) throw new Error('Verification session expired'); const { data } = await api.post('/auth/verify-email', { email: pendingVerification.email, code }); setUser(data.data.user); sessionStorage.removeItem('emstrap_pending_verification'); setPendingVerification(null); return data }
+  const verifyEmail = async code => {
+    if (!pendingVerification) throw new Error('Verification session expired')
+    const { data } = await api.post('/auth/verify-email', { email: pendingVerification.email, code })
+    if (data.data?.token) localStorage.setItem('emstrap_token', data.data.token)
+    setUser(data.data.user)
+    sessionStorage.removeItem('emstrap_pending_verification')
+    setPendingVerification(null)
+    return data
+  }
   const resendCode = async () => { if (!pendingVerification) return; return api.post('/auth/resend-verification', { email: pendingVerification.email }) }
-  const signOut = async () => { try { await api.post('/auth/logout') } finally { setUser(null) } }
+  const signOut = async () => {
+    try { await api.post('/auth/logout') } catch (_) {}
+    localStorage.removeItem('emstrap_token')
+    setUser(null)
+  }
   const updateProfile = async updates => { const { data } = await api.patch('/auth/profile', updates); setUser(data.data.user); return data.data.user }
   const getHistory = async type => { const { data } = await api.get(`/auth/${type === 'billing' ? 'billing-history' : 'ride-history'}`); return data.data[type === 'billing' ? 'payments' : 'rides'] }
   const retryLocation = () => setLocationRetry(value => value + 1)

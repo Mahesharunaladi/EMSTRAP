@@ -12,3 +12,15 @@ export async function authenticateDriver(req, res, next) {
     req.driver = driver; next()
   } catch { res.status(401).json({ success: false, message: 'Invalid driver session', data: null }) }
 }
+
+export async function optionalAuthenticateDriver(req, res, next) {
+  try {
+    const token = req.cookies?.driverToken || (req.get('authorization')?.startsWith('Bearer ') ? req.get('authorization').slice(7) : null)
+    if (!token) { req.driver = null; return next() }
+    const payload = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] })
+    if (payload.role !== 'GOVT_DRIVER') { req.driver = null; return next() }
+    const driver = await GovtDriver.findById(payload.sub).select('+sessionVersion').lean()
+    if (!driver || (payload.ver ?? 0) !== (driver.sessionVersion ?? 0)) { req.driver = null; return next() }
+    req.driver = driver; next()
+  } catch { req.driver = null; next() }
+}

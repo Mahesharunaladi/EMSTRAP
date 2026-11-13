@@ -15,6 +15,7 @@ function issueSession(res, user) {
   const token = jwt.sign({ sub: user._id.toString(), role: user.role, ver: user.sessionVersion || 0 }, process.env.JWT_SECRET, { expiresIn: '7d' })
   const isProd = process.env.NODE_ENV === 'production'
   res.cookie('token', token, { httpOnly: true, secure: isProd, sameSite: isProd ? 'none' : 'lax', maxAge: COOKIE_MAX_AGE, path: '/' })
+  return token
 }
 
 export async function register(req, res, next) {
@@ -39,8 +40,8 @@ export async function verifyEmail(req, res, next) {
     const user = await User.findOneAndUpdate({ email: email?.trim().toLowerCase(), verificationCodeHash: { $exists: true }, verificationCodeExpiresAt: { $gt: new Date() }, $or: [{ verificationAttempts: { $lt: 5 } }, { verificationAttempts: { $exists: false } }] }, { $inc: { verificationAttempts: 1 } }, { returnDocument: 'after' }).select('+verificationCodeHash +verificationCodeExpiresAt +verificationAttempts +sessionVersion')
     if (!user || hashCode(String(code)) !== user.verificationCodeHash) return res.status(400).json({ success: false, message: 'Invalid or expired verification code', data: null })
     user.isEmailVerified = true; user.verificationCodeHash = undefined; user.verificationCodeExpiresAt = undefined; user.verificationAttempts = 0
-    await user.save(); issueSession(res, user)
-    res.json({ success: true, message: 'Email verified successfully', data: { user: publicUser(user) } })
+    await user.save(); const token = issueSession(res, user)
+    res.json({ success: true, message: 'Email verified successfully', data: { user: publicUser(user), token } })
   } catch (error) { next(error) }
 }
 
@@ -60,11 +61,11 @@ export async function login(req, res, next) {
     const user = await User.findOne({ email: email?.trim().toLowerCase() }).select('+passwordHash +sessionVersion')
     if (!user || !(await bcrypt.compare(password || '', user.passwordHash))) return res.status(401).json({ success: false, message: 'Invalid email or password', data: null })
     if (!user.isEmailVerified) return res.status(403).json({ success: false, message: 'Please verify your email before signing in', data: { requiresVerification: true, email: user.email } })
-    issueSession(res, user); res.json({ success: true, message: 'Signed in successfully', data: { user: publicUser(user) } })
+    const token = issueSession(res, user); res.json({ success: true, message: 'Signed in successfully', data: { user: publicUser(user), token } })
   } catch (error) { next(error) }
 }
 
-export async function currentUser(req, res) { res.json({ success: true, message: 'Current user', data: { user: publicUser(req.user) } }) }
+export async function currentUser(req, res) { res.json({ success: true, message: 'Current user', data: { user: req.user ? publicUser(req.user) : null } }) }
 export async function logout(req, res, next) { try { const isProd = process.env.NODE_ENV === 'production'; await User.updateOne({ _id: req.user._id }, { $inc: { sessionVersion: 1 } }); res.clearCookie('token', { httpOnly: true, secure: isProd, sameSite: isProd ? 'none' : 'lax', path: '/' }); res.json({ success: true, message: 'Signed out successfully', data: null }) } catch (error) { next(error) } }
 export { updateCurrentLocation }
 

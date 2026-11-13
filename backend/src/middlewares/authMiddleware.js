@@ -21,6 +21,27 @@ export async function authenticate(req, res, next) {
   }
 }
 
+export async function optionalAuthenticate(req, res, next) {
+  try {
+    const token = getToken(req)
+    if (!token) {
+      req.user = null
+      return next()
+    }
+    const payload = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] })
+    const user = await User.findById(payload.sub).select('+sessionVersion').lean()
+    if (!user || user.role !== payload.role || (payload.ver ?? 0) !== (user.sessionVersion ?? 0)) {
+      req.user = null
+      return next()
+    }
+    req.user = user
+    next()
+  } catch (_) {
+    req.user = null
+    next()
+  }
+}
+
 export function authorizeRoles(allowedRoles = []) {
   return (req, res, next) => allowedRoles.includes(req.user?.role) ? next() : res.status(403).json({ success: false, message: 'You do not have permission for this action', data: null })
 }

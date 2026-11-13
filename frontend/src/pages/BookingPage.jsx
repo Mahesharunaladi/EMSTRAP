@@ -42,9 +42,14 @@ export default function BookingPage() {
   }, [])
 
   const applyPickup = useCallback(point => {
-    const location = { lat: Number(point.lat), lng: Number(point.lng), source: 'browser-gps' }
+    const location = { lat: Number(point.lat), lng: Number(point.lng), source: point.source || 'user-selected' }
     setPickupCoords(location)
     const coordinates = coordinatesLabel(location)
+    if (point.address) {
+      setPickup(point.address)
+      setLocationState('ready')
+      return
+    }
     setPickup(coordinates)
     setLocationState('locating')
     lookupAddress(location).then(address => {

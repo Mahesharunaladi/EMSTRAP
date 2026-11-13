@@ -18,7 +18,7 @@ const activeStatuses = new Set(['PENDING', 'ACCEPTED', 'STARTED'])
 
 export default function MobileHomePage() {
   const navigate = useNavigate()
-  const { user, currentLocation } = useAuth()
+  const { user, currentLocation, updateLocation } = useAuth()
   const { bookings } = useUserBookings()
   const [cameraOpen, setCameraOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
@@ -29,12 +29,14 @@ export default function MobileHomePage() {
   const activeBooking = bookings.find(booking => activeStatuses.has(booking.status))
 
   useEffect(() => {
-    if (user?.currentLocation?.address) {
+    if (currentLocation?.address) {
+      setSelectedAddress(currentLocation.address)
+    } else if (user?.currentLocation?.address) {
       setSelectedAddress(user.currentLocation.address)
-    } else if (currentLocation?.lat && currentLocation?.lng && !selectedAddress) {
+    } else if (currentLocation?.lat && currentLocation?.lng) {
       setSelectedAddress(`${currentLocation.lat.toFixed(4)}, ${currentLocation.lng.toFixed(4)}`)
     }
-  }, [user?.currentLocation?.address, currentLocation?.lat, currentLocation?.lng])
+  }, [currentLocation?.address, user?.currentLocation?.address, currentLocation?.lat, currentLocation?.lng])
 
   useEffect(() => {
     const removeCreated = onEmergencyCreated(event => setEmergency(event.data))
@@ -95,6 +97,14 @@ export default function MobileHomePage() {
     <section className="mt-7 rounded-2xl border border-slate-200 bg-white p-4"><div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-full bg-emerald-100 text-emerald-600"><ShieldAlert size={18} /></span><div><h3 className="text-sm font-bold">Email verified</h3><p className="text-xs text-slate-500">Your emergency profile is protected.</p></div><ChevronRight className="ml-auto text-slate-400" size={18} /></div></section>
 
     {cameraOpen && <CameraCaptureModal onClose={() => setCameraOpen(false)} onCaptured={capture} fallbackLocation={currentLocation} />}
-    {searchOpen && <LocationSearchModal onClose={() => setSearchOpen(false)} onSelected={result => setSelectedAddress(result.displayName)} />}
+    {searchOpen && (
+      <LocationSearchModal
+        onClose={() => setSearchOpen(false)}
+        onSelected={result => {
+          setSelectedAddress(result.address || result.displayName)
+          updateLocation(result)
+        }}
+      />
+    )}
   </MobileAppShell>
 }

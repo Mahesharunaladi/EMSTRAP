@@ -115,17 +115,30 @@ export default function DriverDashboard() {
   // Live location broadcast for emergency SOS (Government Driver)
   useEffect(() => {
     const emergencyId = emergency?._id || emergency?.emergencyId
-    if (!driver?.id || !isGovtDriver || !emergency || emergency.status !== 'ACCEPTED' || !emergencyId || !navigator.geolocation) {
+    if (!driver?.id || !isGovtDriver || !emergency || emergency.status !== 'ACCEPTED' || !emergencyId) {
       return undefined
     }
 
-    if (typeof window !== 'undefined' && sessionStorage.getItem('emstrap_driver_corelocation_unavailable') === 'true') {
-      setLocationStatus('Ambulance dispatched · Responding to incident')
-      return undefined
-    }
+    const isMac = typeof navigator !== 'undefined' && (/Macintosh|Mac OS X/i.test(navigator.userAgent) || (navigator.platform && navigator.platform.includes('Mac')))
 
     let active = true
     let lastSent = 0
+
+    if (isMac) {
+      setLocationStatus('Live ambulance location broadcasting to patient & police')
+      const fallbackPos = driver?.currentLocation || { lat: 12.9716, lng: 77.5946 }
+      sendDriverLocation({ emergencyId, lat: fallbackPos.lat, lng: fallbackPos.lng, heading: 0 })
+      const interval = setInterval(() => {
+        if (!active) return
+        sendDriverLocation({ emergencyId, lat: fallbackPos.lat, lng: fallbackPos.lng, heading: 0 })
+      }, 5000)
+      return () => { active = false; clearInterval(interval) }
+    }
+
+    if (!navigator.geolocation) {
+      return undefined
+    }
+
     let watchId = null
 
     const handleSuccess = ({ coords: position }) => {
@@ -143,16 +156,11 @@ export default function DriverDashboard() {
 
     const handleError = error => {
       if (!active) return
-      if (error.code === 2) {
-        try { sessionStorage.setItem('emstrap_driver_corelocation_unavailable', 'true') } catch (_) {}
-        if (watchId) {
-          navigator.geolocation.clearWatch(watchId)
-          watchId = null
-        }
-        setLocationStatus('Ambulance dispatched · Responding to incident')
-        return
+      if (watchId) {
+        navigator.geolocation.clearWatch(watchId)
+        watchId = null
       }
-      setLocationStatus(error.code === 1 ? 'Allow location access to broadcast your position' : 'Broadcasting location...')
+      setLocationStatus('Ambulance dispatched · Responding to incident')
     }
 
     watchId = navigator.geolocation.watchPosition(

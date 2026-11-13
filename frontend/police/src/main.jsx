@@ -3,6 +3,9 @@ import { createRoot } from 'react-dom/client'
 import { Toaster } from 'react-hot-toast'
 import PoliceDashboard from '../../src/pages/police/PoliceDashboard'
 import './police.css'
+import { initSafeGeolocation } from '../../src/utils/safeGeolocation'
+
+initSafeGeolocation()
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

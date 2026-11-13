@@ -6,6 +6,9 @@ import DriverDashboard from '../../src/pages/driver/DriverDashboard'
 import DriverPortal from '../../src/pages/driver/DriverPortal'
 import DriverProfile from '../../src/pages/driver/DriverProfile'
 import './driver.css'
+import { initSafeGeolocation } from '../../src/utils/safeGeolocation'
+
+initSafeGeolocation()
 
 function DriverRoute({ children }) {
   return sessionStorage.getItem('emstrap_driver_session') ? children : <Navigate to="/driver" replace />

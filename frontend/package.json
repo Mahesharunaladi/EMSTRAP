@@ -8,6 +8,9 @@
     "dev:police": "vite --config police.vite.config.js",
     "dev:driver": "vite --config driver.vite.config.js",
     "build": "vite build",
+    "build:user": "vite build",
+    "build:police": "vite build --config police.vite.config.js --outDir ../dist-police",
+    "build:driver": "vite build --config driver.vite.config.js --outDir ../dist-driver",
     "preview": "vite preview"
   },
   "dependencies": {

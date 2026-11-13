@@ -12,7 +12,7 @@ services:
       - key: BOOKING_MONGODB_URI
         value: mongodb+srv://emstrapcontacts_db_user:Emstr%40p@cluster0.da9nevi.mongodb.net/EMSTRAP-Booking?retryWrites=true&w=majority
       - key: CLIENT_ORIGIN
-        value: https://emstrap-frontend.onrender.com
+        value: https://emstrap-user.onrender.com,https://emstrap-driver.onrender.com,https://emstrap-police.onrender.com
       - key: JWT_SECRET
         generateValue: true
       - key: SMTP_HOST
@@ -28,11 +28,40 @@ services:
       - key: EMAIL_FROM
         value: EmSTraP <emstrapcontacts@gmail.com>
 
+  # 1. User Dashboard / Portal
   - type: web
-    name: emstrap-frontend
+    name: emstrap-user
     runtime: static
-    buildCommand: cd frontend && npm ci && npm run build
+    buildCommand: cd frontend && npm ci && npm run build:user
     staticPublishPath: frontend/dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        value: https://emstrap-backend.onrender.com/api
+
+  # 2. Driver Dashboard / Portal
+  - type: web
+    name: emstrap-driver
+    runtime: static
+    buildCommand: cd frontend && npm ci && npm run build:driver
+    staticPublishPath: frontend/dist-driver
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        value: https://emstrap-backend.onrender.com/api
+
+  # 3. Police Command / Dashboard
+  - type: web
+    name: emstrap-police
+    runtime: static
+    buildCommand: cd frontend && npm ci && npm run build:police
+    staticPublishPath: frontend/dist-police
     routes:
       - type: rewrite
         source: /*

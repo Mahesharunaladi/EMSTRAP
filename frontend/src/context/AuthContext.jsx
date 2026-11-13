@@ -32,16 +32,24 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     if (!user) { setLocationStatus('signed-out'); latestPosition.current = null; return undefined }
-    if (!window.isSecureContext) { setLocationStatus('insecure-context'); return undefined }
-    if (!navigator.geolocation) { setLocationStatus('unsupported'); return undefined }
 
-    // If user has explicitly selected their address, preserve it and do not overwrite with rough network/IP guesses
-    if (user?.currentLocation?.source === 'user-selected' && user.currentLocation.lat && user.currentLocation.lng) {
+    // If user already has a valid location in profile, use it immediately and DO NOT call CoreLocation automatically
+    if (user?.currentLocation?.lat && user?.currentLocation?.lng) {
       setCurrentLocation(user.currentLocation)
       latestPosition.current = user.currentLocation
       setLocationStatus('live')
       return undefined
     }
+
+    // If CoreLocation was reported unavailable on this device (e.g. Mac without GPS), suppress automatic lookups
+    const isCoreLocationBroken = typeof window !== 'undefined' && sessionStorage.getItem('emstrap_corelocation_unavailable') === 'true'
+    if (isCoreLocationBroken) {
+      setLocationStatus('approximate')
+      return undefined
+    }
+
+    if (!window.isSecureContext) { setLocationStatus('insecure-context'); return undefined }
+    if (!navigator.geolocation) { setLocationStatus('unsupported'); return undefined }
 
     let active = true
     let watchId = null
@@ -123,6 +131,9 @@ export function AuthProvider({ children }) {
         },
         error => {
           if (!active) return
+          if (error.code === 2) {
+            try { sessionStorage.setItem('emstrap_corelocation_unavailable', 'true') } catch (_) {}
+          }
           if (watchId) {
             navigator.geolocation.clearWatch(watchId)
             watchId = null
@@ -216,7 +227,10 @@ export function AuthProvider({ children }) {
     return data.data[type === 'billing' ? 'payments' : 'rides']
   }
 
-  const retryLocation = () => setLocationRetry(value => value + 1)
+  const retryLocation = () => {
+    try { sessionStorage.removeItem('emstrap_corelocation_unavailable') } catch (_) {}
+    setLocationRetry(value => value + 1)
+  }
 
   const value = useMemo(() => ({
     user,

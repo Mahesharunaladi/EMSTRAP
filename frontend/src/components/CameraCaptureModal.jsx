@@ -28,6 +28,9 @@ export default function CameraCaptureModal({ onClose, onCaptured, fallbackLocati
         if (active) setLocation(fallbackLocation)
         return
       }
+      if (typeof window !== 'undefined' && sessionStorage.getItem('emstrap_corelocation_unavailable') === 'true') {
+        return
+      }
       if (!navigator.geolocation) {
         if (fallbackLocation && active) setLocation(fallbackLocation)
         return

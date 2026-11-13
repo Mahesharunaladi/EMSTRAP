@@ -64,12 +64,18 @@ export default function BookingPage() {
       applyPickup(currentLocation)
       return
     }
+    if (typeof window !== 'undefined' && sessionStorage.getItem('emstrap_corelocation_unavailable') === 'true') {
+      return
+    }
     setLocationState('locating')
     if (!window.isSecureContext) { setLocationState('insecure-context'); return }
     if (!navigator.geolocation) { setLocationState('unsupported'); return }
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => applyPickup({ lat: coords.latitude, lng: coords.longitude }),
       async (error) => {
+        if (error.code === 2) {
+          try { sessionStorage.setItem('emstrap_corelocation_unavailable', 'true') } catch (_) {}
+        }
         try {
           const res = await fetch('https://ipwho.is/', { signal: AbortSignal.timeout(3000) })
           if (res.ok) {

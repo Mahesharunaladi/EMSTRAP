@@ -332,9 +332,24 @@ export default function DriverDashboard() {
     {/* PRIVATE DRIVERS: Routine Ambulance Bookings Section */}
     {isPrivateDriver && (
       <section className="mt-5 space-y-3">
+        <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-4 shadow-sm">
+          <div className="flex items-center gap-3">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-blue-600 text-white shadow-md shadow-blue-200">
+              <Ambulance size={20} />
+            </span>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="font-display text-base font-bold text-slate-900">Private Ambulance Fleet</h2>
+                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-700">Routine Bookings</span>
+              </div>
+              <p className="mt-0.5 text-xs text-slate-600">Reserved for scheduled patient transport & non-emergency ambulance rides. Emergency SOS dispatches are routed strictly to government units.</p>
+            </div>
+          </div>
+        </div>
+
         <div className="flex items-center justify-between">
           <h2 className="font-display text-xl font-bold">Ambulance bookings</h2>
-          <span className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-bold text-red-700">
+          <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700">
             {bookings.filter(item => item.status === 'PENDING').length} new
           </span>
         </div>

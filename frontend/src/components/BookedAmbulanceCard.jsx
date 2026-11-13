@@ -45,7 +45,13 @@ export default function BookedAmbulanceCard({ booking }) {
 
     {booking.driver && <div className="mt-4 flex items-center gap-3 rounded-xl bg-slate-50 p-3">
       {booking.driver.photo ? <img src={booking.driver.photo} alt="Assigned ambulance driver" className="h-10 w-10 rounded-full object-cover" /> : <span className="grid h-10 w-10 place-items-center rounded-full bg-white text-slate-500"><Ambulance size={18} /></span>}
-      <div className="min-w-0 flex-1"><p className="text-xs font-bold">{booking.driver.name || 'Driver assigned'}</p><p className="text-[11px] text-slate-500">{booking.driver.driverType === 'PRIVATE' ? 'Private driver' : 'Government driver'}{booking.driver.phone ? ` · ${booking.driver.phone}` : ''}</p></div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <p className="text-xs font-bold">{booking.driver.name || 'Driver assigned'}</p>
+          <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-blue-800">Private Operator</span>
+        </div>
+        <p className="text-[11px] text-slate-500">Licensed Medical Transport{booking.driver.phone ? ` · ${booking.driver.phone}` : ''}</p>
+      </div>
     </div>}
 
     {hasCoords(driverLocation) ? <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-emerald-100 bg-emerald-50 p-3">

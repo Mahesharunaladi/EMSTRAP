@@ -6,3 +6,7 @@ dist/
 .gradle/
 local.properties
 **/build/
+*.apk
+*.ap_
+*.aab
+build-apk.sh

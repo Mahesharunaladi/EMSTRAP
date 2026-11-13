@@ -94,7 +94,13 @@ export function AuthProvider({ children }) {
     setUser(data.data.user)
     return data
   }
-  const startSignUp = async (name, email, password) => { const { data } = await api.post('/auth/register', { name, email, password }); const pending = { name, email }; sessionStorage.setItem('emstrap_pending_verification', JSON.stringify(pending)); setPendingVerification(pending); return data }
+  const startSignUp = async (name, email, password) => {
+    const { data } = await api.post('/auth/register', { name, email, password })
+    const pending = { name, email, code: data.data?.otpPreview }
+    sessionStorage.setItem('emstrap_pending_verification', JSON.stringify(pending))
+    setPendingVerification(pending)
+    return data
+  }
   const verifyEmail = async code => {
     if (!pendingVerification) throw new Error('Verification session expired')
     const { data } = await api.post('/auth/verify-email', { email: pendingVerification.email, code })
@@ -104,7 +110,16 @@ export function AuthProvider({ children }) {
     setPendingVerification(null)
     return data
   }
-  const resendCode = async () => { if (!pendingVerification) return; return api.post('/auth/resend-verification', { email: pendingVerification.email }) }
+  const resendCode = async () => {
+    if (!pendingVerification) return
+    const { data } = await api.post('/auth/resend-verification', { email: pendingVerification.email })
+    if (data?.data?.otpPreview) {
+      const updated = { ...pendingVerification, code: data.data.otpPreview }
+      sessionStorage.setItem('emstrap_pending_verification', JSON.stringify(updated))
+      setPendingVerification(updated)
+    }
+    return data
+  }
   const signOut = async () => {
     try { await api.post('/auth/logout') } catch (_) {}
     localStorage.removeItem('emstrap_token')

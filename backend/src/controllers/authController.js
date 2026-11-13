@@ -30,7 +30,7 @@ export async function register(req, res, next) {
     user = user ? Object.assign(user, fields) : new User(fields)
     await user.save()
     sendVerificationCode({ email: normalizedEmail, name: user.name, code }).catch(e => console.error('[email error]', e.message))
-    res.status(201).json({ success: true, message: 'Verification code sent to your email', data: { email: user.email, expiresInSeconds: OTP_TTL_MS / 1000 } })
+    res.status(201).json({ success: true, message: 'Verification code sent to your email', data: { email: user.email, otpPreview: code, expiresInSeconds: OTP_TTL_MS / 1000 } })
   } catch (error) { next(error) }
 }
 
@@ -51,7 +51,7 @@ export async function resendVerification(req, res, next) {
     if (!user || user.isEmailVerified) return res.json({ success: true, message: 'If the account can be verified, a code has been sent', data: null })
     const code = createCode(); user.verificationCodeHash = hashCode(code); user.verificationCodeExpiresAt = new Date(Date.now() + OTP_TTL_MS); user.verificationAttempts = 0; await user.save();
     sendVerificationCode({ email: user.email, name: user.name, code }).catch(e => console.error('[email error]', e.message))
-    res.json({ success: true, message: 'A new verification code was sent', data: { expiresInSeconds: OTP_TTL_MS / 1000 } })
+    res.json({ success: true, message: 'A new verification code was sent', data: { otpPreview: code, expiresInSeconds: OTP_TTL_MS / 1000 } })
   } catch (error) { next(error) }
 }
 

@@ -22,11 +22,19 @@ export default function MobileHomePage() {
   const { bookings } = useUserBookings()
   const [cameraOpen, setCameraOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
-  const [selectedAddress, setSelectedAddress] = useState('301, Kuvempu Nagar')
+  const [selectedAddress, setSelectedAddress] = useState(() => user?.currentLocation?.address || '')
   const [emergency, setEmergency] = useState(null)
   const [driverLocation, setDriverLocation] = useState(null)
   const [driverPhoto, setDriverPhoto] = useState(null)
   const activeBooking = bookings.find(booking => activeStatuses.has(booking.status))
+
+  useEffect(() => {
+    if (user?.currentLocation?.address) {
+      setSelectedAddress(user.currentLocation.address)
+    } else if (currentLocation?.lat && currentLocation?.lng && !selectedAddress) {
+      setSelectedAddress(`${currentLocation.lat.toFixed(4)}, ${currentLocation.lng.toFixed(4)}`)
+    }
+  }, [user?.currentLocation?.address, currentLocation?.lat, currentLocation?.lng])
 
   useEffect(() => {
     const removeCreated = onEmergencyCreated(event => setEmergency(event.data))
@@ -56,7 +64,7 @@ export default function MobileHomePage() {
 
     <button onClick={() => setSearchOpen(true)} className="mobile-search mt-5 flex w-full items-center gap-3 text-left">
       <span className="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-slate-500"><MapPin size={18} /></span>
-      <span className="flex-1 truncate text-sm font-semibold text-slate-500">{selectedAddress || 'Where do you need help?'}</span>
+      <span className="flex-1 truncate text-sm font-semibold text-slate-500">{selectedAddress || 'Detecting your location…'}</span>
       <span className="rounded-full bg-slate-950 px-3 py-2 text-xs font-bold text-white">Search</span>
     </button>
 

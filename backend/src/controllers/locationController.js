@@ -6,11 +6,51 @@ function parseCoordinates(lat, lng) {
   return { lat: latitude, lng: longitude }
 }
 
+export async function resolveAddress(lat, lng) {
+  // 1. Try Nominatim (OpenStreetMap) with contact email
+  try {
+    const url = new URL('https://nominatim.openstreetmap.org/reverse')
+    url.search = new URLSearchParams({ format: 'jsonv2', lat: String(lat), lon: String(lng), zoom: '18', addressdetails: '1' }).toString()
+    const response = await fetch(url, {
+      headers: { 'User-Agent': 'EmSTraP/1.0 (emstrapcontacts@gmail.com)', 'Accept-Language': 'en' },
+      signal: AbortSignal.timeout(4000)
+    })
+    if (response.ok) {
+      const result = await response.json()
+      if (result.display_name) return result.display_name
+    }
+  } catch (_) {}
+
+  // 2. Fallback to Photon (Komoot OSM mirror)
+  try {
+    const pUrl = `https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}`
+    const pRes = await fetch(pUrl, { headers: { 'User-Agent': 'EmSTraP/1.0' }, signal: AbortSignal.timeout(4000) })
+    if (pRes.ok) {
+      const pData = await pRes.json()
+      const feature = pData.features?.[0]
+      if (feature) {
+        const props = feature.properties || {}
+        const address = [props.name, props.street, props.district, props.city, props.state, props.country].filter(Boolean).join(', ')
+        if (address) return address
+      }
+    }
+  } catch (_) {}
+
+  return null
+}
+
 export async function updateCurrentLocation(req, res, next) {
   try {
     const coordinates = parseCoordinates(req.body.lat, req.body.lng)
     if (!coordinates) return res.status(400).json({ success: false, message: 'Valid latitude and longitude are required', data: null })
-    const location = { ...coordinates, address: req.body.address?.trim() || undefined, source: req.body.source || 'browser-gps', updatedAt: new Date() }
+    
+    let address = req.body.address?.trim()
+    if (!address) {
+      const resolved = await resolveAddress(coordinates.lat, coordinates.lng)
+      address = resolved || `${coordinates.lat.toFixed(5)}, ${coordinates.lng.toFixed(5)}`
+    }
+
+    const location = { ...coordinates, address, source: req.body.source || 'browser-gps', updatedAt: new Date() }
     const user = await User.findByIdAndUpdate(req.user._id, { $set: { currentLocation: location } }, { returnDocument: 'after', runValidators: true }).lean()
     res.json({ success: true, message: 'Location updated', data: { location: user.currentLocation } })
   } catch (error) { next(error) }
@@ -20,40 +60,8 @@ export async function reverseGeocode(req, res, next) {
   try {
     const coordinates = parseCoordinates(req.query.lat, req.query.lng)
     if (!coordinates) return res.status(400).json({ success: false, message: 'Valid latitude and longitude are required', data: null })
-
-    // 1. Try Nominatim (OpenStreetMap) with a valid email in User-Agent
-    try {
-      const url = new URL('https://nominatim.openstreetmap.org/reverse')
-      url.search = new URLSearchParams({ format: 'jsonv2', lat: String(coordinates.lat), lon: String(coordinates.lng), zoom: '18', addressdetails: '1' }).toString()
-      const response = await fetch(url, {
-        headers: { 'User-Agent': 'EmSTraP/1.0 (emstrapcontacts@gmail.com)', 'Accept-Language': 'en' },
-        signal: AbortSignal.timeout(4000)
-      })
-      if (response.ok) {
-        const result = await response.json()
-        if (result.display_name) {
-          return res.json({ success: true, message: 'Address found', data: { address: result.display_name, ...coordinates } })
-        }
-      }
-    } catch (_) {}
-
-    // 2. Fallback to Photon (Komoot OSM mirror)
-    try {
-      const pUrl = `https://photon.komoot.io/reverse?lat=${coordinates.lat}&lon=${coordinates.lng}`
-      const pRes = await fetch(pUrl, { headers: { 'User-Agent': 'EmSTraP/1.0' }, signal: AbortSignal.timeout(4000) })
-      if (pRes.ok) {
-        const pData = await pRes.json()
-        const feature = pData.features?.[0]
-        if (feature) {
-          const props = feature.properties || {}
-          const address = [props.name, props.street, props.district, props.city, props.state, props.country].filter(Boolean).join(', ')
-          return res.json({ success: true, message: 'Address found', data: { address: address || `${coordinates.lat}, ${coordinates.lng}`, ...coordinates } })
-        }
-      }
-    } catch (_) {}
-
-    // Graceful fallback: return coordinates
-    res.json({ success: true, message: 'Address fallback', data: { address: `${coordinates.lat.toFixed(5)}, ${coordinates.lng.toFixed(5)}`, ...coordinates } })
+    const address = await resolveAddress(coordinates.lat, coordinates.lng)
+    res.json({ success: true, message: 'Address found', data: { address: address || `${coordinates.lat.toFixed(5)}, ${coordinates.lng.toFixed(5)}`, ...coordinates } })
   } catch (error) { next(error) }
 }
 

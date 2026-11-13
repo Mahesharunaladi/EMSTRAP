@@ -62,7 +62,7 @@ export default function BookingPage() {
       if (error.code === 1) setLocationState('permission')
       else if (error.code === 3) setLocationState('timeout')
       else setLocationState('unavailable')
-    }, { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 })
+    }, { enableHighAccuracy: false, maximumAge: 30000, timeout: 15000 })
   }, [applyPickup])
 
   useEffect(() => {

@@ -55,20 +55,38 @@ export default function BookingPage() {
   }, [lookupAddress])
 
   const locatePickup = useCallback(() => {
+    if (currentLocation && Number.isFinite(Number(currentLocation.lat)) && Number.isFinite(Number(currentLocation.lng))) {
+      applyPickup(currentLocation)
+      return
+    }
     setLocationState('locating')
     if (!window.isSecureContext) { setLocationState('insecure-context'); return }
     if (!navigator.geolocation) { setLocationState('unsupported'); return }
-    navigator.geolocation.getCurrentPosition(({ coords }) => applyPickup({ lat: coords.latitude, lng: coords.longitude }), error => {
-      if (error.code === 1) setLocationState('permission')
-      else if (error.code === 3) setLocationState('timeout')
-      else setLocationState('unavailable')
-    }, { enableHighAccuracy: false, maximumAge: 30000, timeout: 15000 })
-  }, [applyPickup])
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => applyPickup({ lat: coords.latitude, lng: coords.longitude }),
+      async (error) => {
+        try {
+          const res = await fetch('https://ipwho.is/', { signal: AbortSignal.timeout(3000) })
+          if (res.ok) {
+            const d = await res.json()
+            if (Number.isFinite(d.latitude) && Number.isFinite(d.longitude)) {
+              applyPickup({ lat: Number(d.latitude), lng: Number(d.longitude) })
+              return
+            }
+          }
+        } catch (_) {}
+        if (error.code === 1) setLocationState('permission')
+        else if (error.code === 3) setLocationState('timeout')
+        else setLocationState('unavailable')
+      },
+      { enableHighAccuracy: false, maximumAge: 60000, timeout: 5000 },
+    )
+  }, [currentLocation, applyPickup])
 
   useEffect(() => {
     if (step !== 2 || locationRequest.current) return
     locationRequest.current = true
-    if (currentLocation?.source === 'browser-gps' && Number.isFinite(Number(currentLocation.lat)) && Number.isFinite(Number(currentLocation.lng))) applyPickup(currentLocation)
+    if (currentLocation && Number.isFinite(Number(currentLocation.lat)) && Number.isFinite(Number(currentLocation.lng))) applyPickup(currentLocation)
     else locatePickup()
   }, [step, currentLocation, applyPickup, locatePickup])
 

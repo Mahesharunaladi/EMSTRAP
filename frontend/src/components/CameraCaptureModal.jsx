@@ -23,7 +23,11 @@ export default function CameraCaptureModal({ onClose, onCaptured, fallbackLocati
   useEffect(() => {
     let active = true
 
-    const getPosition = (highAccuracy = false) => {
+    const getPosition = () => {
+      if (fallbackLocation && Number.isFinite(Number(fallbackLocation.lat)) && Number.isFinite(Number(fallbackLocation.lng))) {
+        if (active) setLocation(fallbackLocation)
+        return
+      }
       if (!navigator.geolocation) {
         if (fallbackLocation && active) setLocation(fallbackLocation)
         return
@@ -32,20 +36,37 @@ export default function CameraCaptureModal({ onClose, onCaptured, fallbackLocati
         ({ coords }) => {
           if (active) setLocation({ lat: coords.latitude, lng: coords.longitude, source: 'browser-gps' })
         },
-        () => {
-          if (active) {
-            if (fallbackLocation) {
-              setLocation(fallbackLocation)
-            } else if (highAccuracy) {
-              getPosition(false)
-            }
+        async () => {
+          if (!active) return
+          if (fallbackLocation) {
+            setLocation(fallbackLocation)
+            return
           }
+          try {
+            const res = await fetch('https://ipwho.is/', { signal: AbortSignal.timeout(3000) })
+            if (res.ok) {
+              const d = await res.json()
+              if (active && Number.isFinite(d.latitude) && Number.isFinite(d.longitude)) {
+                setLocation({ lat: Number(d.latitude), lng: Number(d.longitude), source: 'network-approximation' })
+                return
+              }
+            }
+          } catch (_) {}
+          try {
+            const res2 = await fetch('https://ipapi.co/json/', { signal: AbortSignal.timeout(3000) })
+            if (res2.ok) {
+              const d2 = await res2.json()
+              if (active && Number.isFinite(d2.latitude) && Number.isFinite(d2.longitude)) {
+                setLocation({ lat: Number(d2.latitude), lng: Number(d2.longitude), source: 'network-approximation' })
+              }
+            }
+          } catch (_) {}
         },
-        { enableHighAccuracy: highAccuracy, timeout: 8000, maximumAge: 30000 },
+        { enableHighAccuracy: false, timeout: 5000, maximumAge: 60000 },
       )
     }
 
-    getPosition(false)
+    getPosition()
 
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
       setCameraState('file-camera')

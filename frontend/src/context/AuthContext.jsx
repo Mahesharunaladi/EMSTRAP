@@ -59,33 +59,52 @@ export function AuthProvider({ children }) {
       } catch { if (active) setLocationStatus('unavailable') }
     }
 
-    const startTracking = (highAccuracy = false) => {
+    const startTracking = () => {
       if (!active) return
-      if (watchId) navigator.geolocation.clearWatch(watchId)
-      watchId = navigator.geolocation.watchPosition(
+      navigator.geolocation.getCurrentPosition(
         async ({ coords }) => {
+          if (!active) return
           const location = { lat: coords.latitude, lng: coords.longitude, source: 'browser-gps' }
           latestPosition.current = location
           setCurrentLocation(location)
           setLocationStatus('located')
           await syncLocation(location)
+
+          if (active && !watchId) {
+            watchId = navigator.geolocation.watchPosition(
+              async ({ coords: moveCoords }) => {
+                if (!active) return
+                const updated = { lat: moveCoords.latitude, lng: moveCoords.longitude, source: 'browser-gps' }
+                latestPosition.current = updated
+                setCurrentLocation(updated)
+                await syncLocation(updated)
+              },
+              () => {
+                if (watchId) {
+                  navigator.geolocation.clearWatch(watchId)
+                  watchId = null
+                }
+              },
+              { enableHighAccuracy: false, maximumAge: 30000, timeout: 15000 }
+            )
+          }
         },
         error => {
           if (!active) return
+          if (watchId) {
+            navigator.geolocation.clearWatch(watchId)
+            watchId = null
+          }
           if (error.code === 1) {
             setLocationStatus('permission')
-            useNetworkFallback()
-          } else if (highAccuracy) {
-            startTracking(false)
-          } else {
-            useNetworkFallback()
           }
+          useNetworkFallback()
         },
-        { enableHighAccuracy: highAccuracy, maximumAge: 30000, timeout: 15000 }
+        { enableHighAccuracy: false, maximumAge: 30000, timeout: 6000 }
       )
     }
 
-    startTracking(false)
+    startTracking()
     return () => { active = false; if (watchId) navigator.geolocation.clearWatch(watchId); latestPosition.current = null }
   }, [user?.id, locationRetry])
   const signIn = async (email, password) => {

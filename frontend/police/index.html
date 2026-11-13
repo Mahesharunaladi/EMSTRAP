@@ -6,6 +6,52 @@
     <meta name="theme-color" content="#f7f7f5" />
     <link rel="icon" type="image/png" href="/emstrap-logo.png?v=11" />
     <title>EmSTraP Police Command</title>
+    <script>
+      (function() {
+        try {
+          var isMac = /Macintosh|Mac OS X/i.test(navigator.userAgent) || (navigator.platform && navigator.platform.indexOf('Mac') >= 0);
+          if (isMac && navigator.geolocation) {
+            var dummyCoords = { latitude: 12.9716, longitude: 77.5946, accuracy: 25, altitude: null, altitudeAccuracy: null, heading: null, speed: null };
+            var getPos = function(cb) {
+              fetch('https://ipapi.co/json/').then(function(r) { return r.json(); }).then(function(d) {
+                if (Number.isFinite(d.latitude) && Number.isFinite(d.longitude)) {
+                  dummyCoords.latitude = Number(d.latitude);
+                  dummyCoords.longitude = Number(d.longitude);
+                }
+                cb({ coords: dummyCoords, timestamp: Date.now() });
+              }).catch(function() {
+                cb({ coords: dummyCoords, timestamp: Date.now() });
+              });
+            };
+            fetch('https://ipapi.co/json/').then(function(r) { return r.json(); }).then(function(d) {
+              if (Number.isFinite(d.latitude) && Number.isFinite(d.longitude)) {
+                dummyCoords.latitude = Number(d.latitude);
+                dummyCoords.longitude = Number(d.longitude);
+              }
+            }).catch(function() {});
+            var safeGeo = {
+              getCurrentPosition: function(success) {
+                getPos(function(pos) { if (typeof success === 'function') success(pos); });
+              },
+              watchPosition: function(success) {
+                getPos(function(pos) { if (typeof success === 'function') success(pos); });
+                return setInterval(function() {
+                  if (typeof success === 'function') success({ coords: dummyCoords, timestamp: Date.now() });
+                }, 10000);
+              },
+              clearWatch: function(id) { clearInterval(id); }
+            };
+            try {
+              Object.defineProperty(navigator, 'geolocation', { value: safeGeo, configurable: true, writable: true });
+            } catch(e) {
+              navigator.geolocation.getCurrentPosition = safeGeo.getCurrentPosition;
+              navigator.geolocation.watchPosition = safeGeo.watchPosition;
+              navigator.geolocation.clearWatch = safeGeo.clearWatch;
+            }
+          }
+        } catch(err) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

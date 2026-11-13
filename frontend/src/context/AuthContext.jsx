@@ -20,22 +20,8 @@ export function AuthProvider({ children }) {
     let active = true; let watchId
     lastLocationSyncAt.current = 0
     setLocationStatus('starting')
-    const useNetworkFallback = async () => {
-      if (!active) return
-      setLocationStatus('fallback')
-      try {
-        const response = await fetch('https://ipapi.co/json/')
-        const data = await response.json(); const lat = Number(data.latitude); const lng = Number(data.longitude)
-        if (!Number.isFinite(lat) || !Number.isFinite(lng)) throw new Error('No approximate coordinates')
-        latestPosition.current = { lat, lng, source: 'network-approximation' }; setCurrentLocation(latestPosition.current); setLocationStatus('approximate')
-      } catch { if (active) setLocationStatus('unavailable') }
-    }
-    const handleLocationError = error => { if (!active) return; navigator.geolocation.clearWatch(watchId); if (error.code === 1) setLocationStatus('permission'); else useNetworkFallback() }
-    watchId = navigator.geolocation.watchPosition(async ({ coords }) => {
-      const location = { lat: coords.latitude, lng: coords.longitude, source: 'browser-gps' }
-      latestPosition.current = location
-      setCurrentLocation(location)
-      setLocationStatus('located')
+
+    const syncLocation = async (location) => {
       const now = Date.now()
       if (now - lastLocationSyncAt.current < 5000) return
       lastLocationSyncAt.current = now
@@ -45,8 +31,62 @@ export function AuthProvider({ children }) {
         setUser(current => current ? { ...current, currentLocation: data.data.location } : current)
         setLocationStatus('live')
       } catch { if (active) setLocationStatus('sync-error') }
-    }, handleLocationError, { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 })
-    return () => { active = false; navigator.geolocation.clearWatch(watchId); latestPosition.current = null }
+    }
+
+    const useNetworkFallback = async () => {
+      if (!active) return
+      setLocationStatus('fallback')
+      try {
+        let lat, lng
+        try {
+          const res = await fetch('https://ipapi.co/json/', { signal: AbortSignal.timeout(3000) })
+          if (res.ok) { const d = await res.json(); lat = Number(d.latitude); lng = Number(d.longitude) }
+        } catch (_) {}
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+          try {
+            const res2 = await fetch('https://ipwho.is/', { signal: AbortSignal.timeout(3000) })
+            if (res2.ok) { const d2 = await res2.json(); lat = Number(d2.latitude); lng = Number(d2.longitude) }
+          } catch (_) {}
+        }
+        if (Number.isFinite(lat) && Number.isFinite(lng)) {
+          const location = { lat, lng, source: 'network-approximation' }
+          latestPosition.current = location
+          setCurrentLocation(location)
+          setLocationStatus('approximate')
+          await syncLocation(location)
+          return
+        }
+      } catch { if (active) setLocationStatus('unavailable') }
+    }
+
+    const startTracking = (highAccuracy = false) => {
+      if (!active) return
+      if (watchId) navigator.geolocation.clearWatch(watchId)
+      watchId = navigator.geolocation.watchPosition(
+        async ({ coords }) => {
+          const location = { lat: coords.latitude, lng: coords.longitude, source: 'browser-gps' }
+          latestPosition.current = location
+          setCurrentLocation(location)
+          setLocationStatus('located')
+          await syncLocation(location)
+        },
+        error => {
+          if (!active) return
+          if (error.code === 1) {
+            setLocationStatus('permission')
+            useNetworkFallback()
+          } else if (highAccuracy) {
+            startTracking(false)
+          } else {
+            useNetworkFallback()
+          }
+        },
+        { enableHighAccuracy: highAccuracy, maximumAge: 30000, timeout: 15000 }
+      )
+    }
+
+    startTracking(false)
+    return () => { active = false; if (watchId) navigator.geolocation.clearWatch(watchId); latestPosition.current = null }
   }, [user?.id, locationRetry])
   const signIn = async (email, password) => { const { data } = await api.post('/auth/login', { email, password }); setUser(data.data.user); return data }
   const startSignUp = async (name, email, password) => { const { data } = await api.post('/auth/register', { name, email, password }); const pending = { name, email }; sessionStorage.setItem('emstrap_pending_verification', JSON.stringify(pending)); setPendingVerification(pending); return data }

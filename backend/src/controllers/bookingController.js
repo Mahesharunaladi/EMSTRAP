@@ -55,17 +55,26 @@ export async function createBooking(req, res, next) {
 export async function getMyBookings(req, res, next) {
   try {
     if (req.user.role !== 'USER') return res.status(403).json({ success: false, message: 'A user account is required to view ambulance bookings', data: null })
-    let bookings = await AmbulanceBooking.find({ authUserId: req.user._id }).sort({ createdAt: -1 }).limit(50).lean()
-    if (!bookings.length) {
-      const bookingUser = await BookingUser.findOne({ email: req.user.email }).select('_id').lean()
-      if (bookingUser) bookings = await AmbulanceBooking.find({ userId: bookingUser._id }).sort({ createdAt: -1 }).limit(50).lean()
+    let bookings = []
+    try {
+      bookings = await AmbulanceBooking.find({ authUserId: req.user._id }).sort({ createdAt: -1 }).limit(50).lean()
+      if (!bookings.length) {
+        const bookingUser = await BookingUser.findOne({ email: req.user.email }).select('_id').lean()
+        if (bookingUser) bookings = await AmbulanceBooking.find({ userId: bookingUser._id }).sort({ createdAt: -1 }).limit(50).lean()
+      }
+    } catch (dbErr) {
+      console.warn('[bookings] DB query temporary warning:', dbErr.message)
+      return res.json({ success: true, message: 'Your ambulance bookings', data: { bookings: [] } })
     }
-    const driverIds = [...new Set(bookings.map(booking => booking.assignedDriverId?.toString()).filter(Boolean))]
-    const drivers = driverIds.length
-      ? await GovtDriver.find({ _id: { $in: driverIds } }).select('name phone driverType selfie').lean()
-      : []
-    const driversById = new Map(drivers.map(driver => [driver._id.toString(), driver]))
-    const rides = bookings.map(booking => {
+    const driverIds = [...new Set((bookings || []).map(booking => booking.assignedDriverId?.toString()).filter(Boolean))]
+    let drivers = []
+    try {
+      drivers = driverIds.length
+        ? await GovtDriver.find({ _id: { $in: driverIds } }).select('name phone driverType selfie').lean()
+        : []
+    } catch (_) { drivers = [] }
+    const driversById = new Map((drivers || []).map(driver => [driver._id.toString(), driver]))
+    const rides = (bookings || []).map(booking => {
       const assignedDriver = booking.assignedDriverId && driversById.get(booking.assignedDriverId.toString())
       return {
         ...publicBooking(booking),

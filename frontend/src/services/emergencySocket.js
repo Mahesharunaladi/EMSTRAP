@@ -55,12 +55,18 @@ export function uploadEmergencyEvidence(payload) {
 
 export function joinDriverRoom(driverId, onEmergency, driverType = 'GOVERNMENT', onAssignment, onBooking, onBookingAssignment) {
   connect()
-  socket.emit('join_room', { role: driverType === 'PRIVATE' ? 'PRIVATE_DRIVER' : 'GOVT_DRIVER', userId: driverId })
+  const emitJoin = () => {
+    socket.emit('join_room', { role: driverType === 'PRIVATE' ? 'PRIVATE_DRIVER' : 'GOVT_DRIVER', userId: driverId })
+  }
+  emitJoin()
+  socket.on('connect', emitJoin)
+
   if (onEmergency && driverType === 'GOVERNMENT') socket.on('NEW_EMERGENCY_ALERT', onEmergency)
   if (onAssignment && driverType === 'GOVERNMENT') socket.on('DRIVER_ASSIGNED', onAssignment)
   if (onBooking && driverType === 'PRIVATE') socket.on('NEW_PRIVATE_BOOKING', onBooking)
   if (onBookingAssignment && driverType === 'PRIVATE') socket.on('BOOKING_ASSIGNED', onBookingAssignment)
   return () => {
+    socket.off('connect', emitJoin)
     if (onEmergency && driverType === 'GOVERNMENT') socket.off('NEW_EMERGENCY_ALERT', onEmergency)
     if (onAssignment && driverType === 'GOVERNMENT') socket.off('DRIVER_ASSIGNED', onAssignment)
     if (onBooking && driverType === 'PRIVATE') socket.off('NEW_PRIVATE_BOOKING', onBooking)

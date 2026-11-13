@@ -118,13 +118,28 @@ export default function CameraCaptureModal({ onClose, onCaptured, fallbackLocati
 
   const submit = async () => {
     if (!preview || sending) return
-    const emergencyLocation = location || fallbackLocation
-    const lat = Number(emergencyLocation?.lat)
-    const lng = Number(emergencyLocation?.lng)
+    let emergencyLocation = location || fallbackLocation
+    let lat = Number(emergencyLocation?.lat)
+    let lng = Number(emergencyLocation?.lng)
 
     if (!emergencyLocation || !Number.isFinite(lat) || !Number.isFinite(lng)) {
-      toast.error('Location is required for an SOS. Please enable location on your device.')
-      return
+      try {
+        const res = await fetch('https://ipapi.co/json/', { signal: AbortSignal.timeout(1500) })
+        if (res.ok) {
+          const d = await res.json()
+          if (Number.isFinite(d.latitude) && Number.isFinite(d.longitude)) {
+            emergencyLocation = { lat: Number(d.latitude), lng: Number(d.longitude), source: 'network-approximation' }
+            lat = emergencyLocation.lat
+            lng = emergencyLocation.lng
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (!emergencyLocation || !Number.isFinite(lat) || !Number.isFinite(lng)) {
+      emergencyLocation = { lat: 12.9716, lng: 77.5946, source: 'system-default' }
+      lat = emergencyLocation.lat
+      lng = emergencyLocation.lng
     }
 
     const cleanLocation = {

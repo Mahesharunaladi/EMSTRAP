@@ -81,13 +81,12 @@ export function registerSocketHandlers(io) {
 
     socket.on('join_room', async ({ role } = {}) => {
       let room = null
-      if (['GOVT_DRIVER', 'PRIVATE_DRIVER'].includes(role) && driver) {
-        await syncDriverRoom()
-        const expectedRoom = role === 'PRIVATE_DRIVER' ? ROOMS.privateDriver : ROOMS.govtDriver
-        if (socket.rooms.has(expectedRoom)) {
-          room = expectedRoom
-          if (!driverRoomWatcher) driverRoomWatcher = setInterval(syncDriverRoom, 30_000)
+      if (['GOVT_DRIVER', 'PRIVATE_DRIVER'].includes(role)) {
+        if (driver) {
+          await syncDriverRoom()
         }
+        room = role === 'PRIVATE_DRIVER' ? ROOMS.privateDriver : ROOMS.govtDriver
+        if (!driverRoomWatcher && driver) driverRoomWatcher = setInterval(syncDriverRoom, 30_000)
       }
       if (role === 'POLICE') room = ROOMS.police
       if (room) socket.join(room)

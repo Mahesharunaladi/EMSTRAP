@@ -3,7 +3,7 @@ services:
     name: emstrap-backend
     env: node
     repo: .
-    branch: main
+    branch: cmmoit
     buildCommand: cd backend && npm ci
     startCommand: cd backend && npm start
     healthCheckPath: /health
@@ -18,7 +18,7 @@ services:
 staticSites:
   - name: emstrap-frontend
     repo: .
-    branch: main
+    branch: cmmoit
     buildCommand: cd frontend && npm ci && npm run build
     publishPath: frontend/build
     envVars:

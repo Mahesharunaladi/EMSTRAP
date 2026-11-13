@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: emstrap-backend
+    env: node
+    repo: .
+    branch: main
+    buildCommand: cd backend && npm ci
+    startCommand: cd backend && npm start
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        value: ${DATABASE_URL}
+      - key: JWT_SECRET
+        value: ${JWT_SECRET}
+      - key: BASE_URL
+        value: https://emstrap-backend.onrender.com
+
+staticSites:
+  - name: emstrap-frontend
+    repo: .
+    branch: main
+    buildCommand: cd frontend && npm ci && npm run build
+    publishPath: frontend/build
+    envVars:
+      - key: REACT_APP_API_BASE
+        value: https://emstrap-backend.onrender.com

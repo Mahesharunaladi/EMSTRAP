@@ -36,15 +36,15 @@ export function uploadEmergencyEvidence(payload) {
 export function joinDriverRoom(driverId, onEmergency, driverType = 'GOVERNMENT', onAssignment, onBooking, onBookingAssignment) {
   connect()
   socket.emit('join_room', { role: driverType === 'PRIVATE' ? 'PRIVATE_DRIVER' : 'GOVT_DRIVER', userId: driverId })
-  if (onEmergency && driverType !== 'PRIVATE') socket.on('NEW_EMERGENCY_ALERT', onEmergency)
-  if (onAssignment && driverType !== 'PRIVATE') socket.on('DRIVER_ASSIGNED', onAssignment)
-  if (onBooking) socket.on('NEW_PRIVATE_BOOKING', onBooking)
-  if (onBookingAssignment) socket.on('BOOKING_ASSIGNED', onBookingAssignment)
+  if (onEmergency && driverType === 'GOVERNMENT') socket.on('NEW_EMERGENCY_ALERT', onEmergency)
+  if (onAssignment && driverType === 'GOVERNMENT') socket.on('DRIVER_ASSIGNED', onAssignment)
+  if (onBooking && driverType === 'PRIVATE') socket.on('NEW_PRIVATE_BOOKING', onBooking)
+  if (onBookingAssignment && driverType === 'PRIVATE') socket.on('BOOKING_ASSIGNED', onBookingAssignment)
   return () => {
-    if (onEmergency && driverType !== 'PRIVATE') socket.off('NEW_EMERGENCY_ALERT', onEmergency)
-    if (onAssignment && driverType !== 'PRIVATE') socket.off('DRIVER_ASSIGNED', onAssignment)
-    if (onBooking) socket.off('NEW_PRIVATE_BOOKING', onBooking)
-    if (onBookingAssignment) socket.off('BOOKING_ASSIGNED', onBookingAssignment)
+    if (onEmergency && driverType === 'GOVERNMENT') socket.off('NEW_EMERGENCY_ALERT', onEmergency)
+    if (onAssignment && driverType === 'GOVERNMENT') socket.off('DRIVER_ASSIGNED', onAssignment)
+    if (onBooking && driverType === 'PRIVATE') socket.off('NEW_PRIVATE_BOOKING', onBooking)
+    if (onBookingAssignment && driverType === 'PRIVATE') socket.off('BOOKING_ASSIGNED', onBookingAssignment)
   }
 }
 export function sendDriverLocation(payload) { connect(); socket.emit('driver_location_update', { emergencyId: payload.emergencyId, lat: payload.lat, lng: payload.lng, heading: payload.heading }) }

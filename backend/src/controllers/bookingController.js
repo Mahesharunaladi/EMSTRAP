@@ -47,7 +47,7 @@ export async function createBooking(req, res, next) {
     })
     const payload = publicBooking(booking)
     const io = req.app.get('io')
-    if (io) io.to(driverRooms[0]).to(driverRooms[1]).emit('NEW_PRIVATE_BOOKING', payload)
+    if (io) io.to('private_drivers_channel').emit('NEW_PRIVATE_BOOKING', payload)
     res.status(201).json({ success: true, message: 'Ambulance request sent to available drivers', data: { booking: payload } })
   } catch (error) { next(error) }
 }
@@ -94,6 +94,13 @@ export async function getMyBookings(req, res, next) {
 
 export async function getDriverBookings(req, res, next) {
   try {
+    if (req.driver.driverType === 'GOVERNMENT') {
+      return res.json({
+        success: true,
+        message: 'Government drivers only receive emergency SOS requests',
+        data: { bookings: [], driverStatus: req.driver.status, canReceiveBookings: false },
+      })
+    }
     if (!canDriverReceiveDispatch(req.driver)) {
       return res.json({
         success: true,
@@ -103,7 +110,6 @@ export async function getDriverBookings(req, res, next) {
     }
     const bookings = await AmbulanceBooking.find({
       $or: [
-        // `null` matches both legacy missing values and explicit null values.
         { status: 'PENDING', assignedDriverId: null },
         { status: { $in: activeBookingStatuses }, assignedDriverId: req.driver._id },
       ],
@@ -119,19 +125,20 @@ export async function getDriverBookings(req, res, next) {
 export async function acceptDriverBooking(req, res, next) {
   try {
     const driver = await GovtDriver.findById(req.driver._id).lean()
+    if (driver.driverType === 'GOVERNMENT') {
+      return res.status(403).json({ success: false, message: 'Government drivers can only accept emergency SOS requests. Normal rides are for private drivers only.', data: null })
+    }
     if (!canDriverReceiveDispatch(driver)) return res.status(403).json({ success: false, message: 'Driver approval or document verification is required before accepting bookings', data: null })
     const booking = await AmbulanceBooking.findOneAndUpdate(
-      // Atomic conditional claim: only one concurrent driver can change this row.
       { _id: req.params.bookingId, status: 'PENDING', assignedDriverId: null },
-      { $set: { status: 'ACCEPTED', assignedDriverId: driver._id, assignedDriverType: driver.driverType || 'GOVERNMENT' } },
+      { $set: { status: 'ACCEPTED', assignedDriverId: driver._id, assignedDriverType: 'PRIVATE' } },
       { returnDocument: 'after', runValidators: true },
     ).lean()
     if (!booking) return res.status(409).json({ success: false, message: 'This booking was already accepted or is no longer available', data: null })
     const io = req.app.get('io')
     const assignment = { booking: publicBooking(booking), driver: { id: driver._id, name: driver.name, phone: driver.phone, driverType: driver.driverType } }
     if (io) {
-      // Other drivers need only the claim ID so their dashboards immediately remove it.
-      io.to(driverRooms[0]).to(driverRooms[1]).emit('BOOKING_ASSIGNED', { booking: publicBooking(booking), driver: { id: driver._id } })
+      io.to('private_drivers_channel').emit('BOOKING_ASSIGNED', { booking: publicBooking(booking), driver: { id: driver._id } })
       if (booking.authUserId) io.to(userRoom(booking.authUserId.toString())).emit('BOOKING_DRIVER_ASSIGNED', assignment)
     }
     res.json({ success: true, message: 'Booking accepted', data: assignment })

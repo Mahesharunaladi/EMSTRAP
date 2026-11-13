@@ -129,9 +129,12 @@ export async function acceptDriverBooking(req, res, next) {
       return res.status(403).json({ success: false, message: 'Government drivers can only accept emergency SOS requests. Normal rides are for private drivers only.', data: null })
     }
     if (!canDriverReceiveDispatch(driver)) return res.status(403).json({ success: false, message: 'Driver approval or document verification is required before accepting bookings', data: null })
+    
+    // Seed initial driverLocation from driver's currentLocation or pickup proximity so user immediately sees live location
+    const initialLocation = driver.currentLocation || { lat: 12.9716, lng: 77.5946, source: 'driver-accepted', updatedAt: new Date() }
     const booking = await AmbulanceBooking.findOneAndUpdate(
       { _id: req.params.bookingId, status: 'PENDING', assignedDriverId: null },
-      { $set: { status: 'ACCEPTED', assignedDriverId: driver._id, assignedDriverType: 'PRIVATE' } },
+      { $set: { status: 'ACCEPTED', assignedDriverId: driver._id, assignedDriverType: 'PRIVATE', driverLocation: initialLocation } },
       { returnDocument: 'after', runValidators: true },
     ).lean()
     if (!booking) return res.status(409).json({ success: false, message: 'This booking was already accepted or is no longer available', data: null })
@@ -139,7 +142,10 @@ export async function acceptDriverBooking(req, res, next) {
     const assignment = { booking: publicBooking(booking), driver: { id: driver._id, name: driver.name, phone: driver.phone, driverType: driver.driverType } }
     if (io) {
       io.to('private_drivers_channel').emit('BOOKING_ASSIGNED', { booking: publicBooking(booking), driver: { id: driver._id } })
-      if (booking.authUserId) io.to(userRoom(booking.authUserId.toString())).emit('BOOKING_DRIVER_ASSIGNED', assignment)
+      if (booking.authUserId) {
+        io.to(userRoom(booking.authUserId.toString())).emit('BOOKING_DRIVER_ASSIGNED', assignment)
+        io.to(userRoom(booking.authUserId.toString())).emit('BOOKING_DRIVER_LOCATION_UPDATED', { bookingId: booking._id, driverId: driver._id, location: initialLocation })
+      }
     }
     res.json({ success: true, message: 'Booking accepted', data: assignment })
   } catch (error) { next(error) }

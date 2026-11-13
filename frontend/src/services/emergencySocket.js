@@ -77,6 +77,9 @@ export function sendDriverLocation(payload) { connect(); socket.emit('driver_loc
 export function sendUserLocation(payload) { connect(); socket.emit('user_location_update', payload) }
 export function onEmergencyCreated(callback) { connect(); socket.on('emergency:created', callback); return () => socket.off('emergency:created', callback) }
 export function onDriverLocationUpdated(callback) { connect(); socket.on('DRIVER_LOCATION_UPDATED', callback); return () => socket.off('DRIVER_LOCATION_UPDATED', callback) }
+export function onBookingDriverLocationUpdated(callback) { connect(); socket.on('BOOKING_DRIVER_LOCATION_UPDATED', callback); return () => socket.off('BOOKING_DRIVER_LOCATION_UPDATED', callback) }
+export function onBookingDriverAssigned(callback) { connect(); socket.on('BOOKING_DRIVER_ASSIGNED', callback); return () => socket.off('BOOKING_DRIVER_ASSIGNED', callback) }
+export function onBookingStatusUpdated(callback) { connect(); socket.on('BOOKING_STATUS_UPDATED', callback); return () => socket.off('BOOKING_STATUS_UPDATED', callback) }
 export async function acceptEmergency(emergencyId) {
   try {
     const { data } = await api.post(`/driver/emergency/${emergencyId}/accept`)

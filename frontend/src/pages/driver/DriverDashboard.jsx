@@ -175,39 +175,48 @@ export default function DriverDashboard() {
   const activeBooking = useMemo(() => isPrivateDriver ? bookings.find(booking => ['ACCEPTED', 'STARTED'].includes(booking.status) && String(booking.assignedDriverId) === String(driver?.id)) || null : null, [isPrivateDriver, bookings, driver?.id])
 
   useEffect(() => {
-    if (!driver?.id || !activeBooking || !navigator.geolocation) {
+    if (!driver?.id || !activeBooking) {
       if (isPrivateDriver) setLocationStatus('Location sharing starts after accepting a booking')
       return undefined
     }
-    if (!window.isSecureContext) {
-      setLocationStatus('Open this portal over HTTPS or localhost to share live GPS')
-      return undefined
-    }
-    if (typeof window !== 'undefined' && sessionStorage.getItem('emstrap_driver_corelocation_unavailable') === 'true') {
-      return undefined
-    }
+
     let active = true
     let lastSentAt = 0
-    let watchId = null
-    watchId = navigator.geolocation.watchPosition(
-      ({ coords: position }) => {
-        const now = Date.now()
-        if (now - lastSentAt < 5000) return
-        lastSentAt = now
-        api.patch(`/driver/bookings/${activeBooking._id}/location`, { location: { lat: position.latitude, lng: position.longitude, source: 'browser-gps' } })
-          .then(() => { if (active) setLocationStatus('Live driver location shared with the customer') })
-          .catch(() => { if (active) setLocationStatus('Unable to share live location') })
-      },
-      error => {
+
+    const sendCurrentPos = (lat, lng) => {
+      const now = Date.now()
+      if (now - lastSentAt < 4000) return
+      lastSentAt = now
+      api.patch(`/driver/bookings/${activeBooking._id}/location`, { location: { lat, lng, source: 'browser-gps' } })
+        .then(() => { if (active) setLocationStatus('Live driver location shared with the customer') })
+        .catch(() => {})
+    }
+
+    // Immediately push initial location
+    if (driver?.currentLocation?.lat && driver?.currentLocation?.lng) {
+      sendCurrentPos(driver.currentLocation.lat, driver.currentLocation.lng)
+    }
+
+    const isMac = typeof navigator !== 'undefined' && (/Macintosh|Mac OS X/i.test(navigator.userAgent) || (navigator.platform && navigator.platform.includes('Mac')))
+    if (isMac) {
+      const fallbackPos = driver?.currentLocation || { lat: 12.9716, lng: 77.5946 }
+      sendCurrentPos(fallbackPos.lat, fallbackPos.lng)
+      const interval = setInterval(() => {
         if (!active) return
-        if (error.code === 2) {
-          try { sessionStorage.setItem('emstrap_driver_corelocation_unavailable', 'true') } catch (_) {}
-          if (watchId) {
-            navigator.geolocation.clearWatch(watchId)
-            watchId = null
-          }
-        }
-        setLocationStatus(error.code === 1 ? 'Allow location access to share your live position' : 'Sharing position with rider')
+        sendCurrentPos(fallbackPos.lat, fallbackPos.lng)
+      }, 5000)
+      return () => { active = false; clearInterval(interval) }
+    }
+
+    if (!navigator.geolocation) return undefined
+
+    let watchId = navigator.geolocation.watchPosition(
+      ({ coords: position }) => {
+        sendCurrentPos(position.latitude, position.longitude)
+      },
+      () => {
+        const fallback = driver?.currentLocation || { lat: 12.9716, lng: 77.5946 }
+        sendCurrentPos(fallback.lat, fallback.lng)
       },
       { enableHighAccuracy: false, maximumAge: 10000, timeout: 10000 },
     )

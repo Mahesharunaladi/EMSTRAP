@@ -12,7 +12,7 @@ services:
       - key: BOOKING_MONGODB_URI
         value: mongodb+srv://emstrapcontacts_db_user:Emstr%40p@cluster0.da9nevi.mongodb.net/EMSTRAP-Booking?retryWrites=true&w=majority
       - key: CLIENT_ORIGIN
-        value: https://emstrap-user.onrender.com,https://emstrap-driver.onrender.com,https://emstrap-police.onrender.com
+        value: https://emstrap-frontend-utuo.onrender.com,https://emstrap-user.onrender.com,https://emstrap-driver.onrender.com,https://emstrap-police.onrender.com
       - key: JWT_SECRET
         generateValue: true
       - key: SMTP_HOST
@@ -40,7 +40,7 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_URL
-        value: https://emstrap-backend.onrender.com/api
+        value: https://emstrap-backend-utuo.onrender.com/api
 
   # 2. Driver Dashboard / Portal
   - type: web
@@ -54,7 +54,7 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_URL
-        value: https://emstrap-backend.onrender.com/api
+        value: https://emstrap-backend-utuo.onrender.com/api
 
   # 3. Police Command / Dashboard
   - type: web
@@ -68,4 +68,4 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_URL
-        value: https://emstrap-backend.onrender.com/api
+        value: https://emstrap-backend-utuo.onrender.com/api

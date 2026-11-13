@@ -29,7 +29,7 @@ export async function register(req, res, next) {
     const fields = { name: name.trim(), email: normalizedEmail, passwordHash: await bcrypt.hash(password, 12), isEmailVerified: false, verificationCodeHash: hashCode(code), verificationCodeExpiresAt: new Date(Date.now() + OTP_TTL_MS), verificationAttempts: 0 }
     user = user ? Object.assign(user, fields) : new User(fields)
     await user.save()
-    await sendVerificationCode({ email: normalizedEmail, name: user.name, code })
+    sendVerificationCode({ email: normalizedEmail, name: user.name, code }).catch(e => console.error('[email error]', e.message))
     res.status(201).json({ success: true, message: 'Verification code sent to your email', data: { email: user.email, expiresInSeconds: OTP_TTL_MS / 1000 } })
   } catch (error) { next(error) }
 }
@@ -49,7 +49,8 @@ export async function resendVerification(req, res, next) {
   try {
     const user = await User.findOne({ email: req.body.email?.trim().toLowerCase() }).select('+verificationCodeHash +verificationCodeExpiresAt')
     if (!user || user.isEmailVerified) return res.json({ success: true, message: 'If the account can be verified, a code has been sent', data: null })
-    const code = createCode(); user.verificationCodeHash = hashCode(code); user.verificationCodeExpiresAt = new Date(Date.now() + OTP_TTL_MS); user.verificationAttempts = 0; await user.save(); await sendVerificationCode({ email: user.email, name: user.name, code })
+    const code = createCode(); user.verificationCodeHash = hashCode(code); user.verificationCodeExpiresAt = new Date(Date.now() + OTP_TTL_MS); user.verificationAttempts = 0; await user.save();
+    sendVerificationCode({ email: user.email, name: user.name, code }).catch(e => console.error('[email error]', e.message))
     res.json({ success: true, message: 'A new verification code was sent', data: { expiresInSeconds: OTP_TTL_MS / 1000 } })
   } catch (error) { next(error) }
 }

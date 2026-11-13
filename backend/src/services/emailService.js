@@ -7,6 +7,9 @@ if (smtpConfigured) {
   if (process.env.SMTP_HOST === 'smtp.gmail.com' || (process.env.SMTP_USER && process.env.SMTP_USER.endsWith('@gmail.com'))) {
     transporter = nodemailer.createTransport({
       service: 'gmail',
+      connectionTimeout: 5000,
+      greetingTimeout: 5000,
+      socketTimeout: 6000,
       auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD }
     })
   } else {
@@ -14,6 +17,9 @@ if (smtpConfigured) {
       host: process.env.SMTP_HOST,
       port: Number(process.env.SMTP_PORT) || 587,
       secure: process.env.SMTP_SECURE === 'true',
+      connectionTimeout: 5000,
+      greetingTimeout: 5000,
+      socketTimeout: 6000,
       auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD }
     })
   }
@@ -42,7 +48,6 @@ export async function sendVerificationCode({ email, name, code }) {
     return { delivered: true, code }
   } catch (error) {
     console.error(`[email error] Failed to send email to ${email}:`, error.message)
-    // Non-blocking: log the error and OTP so registration does not fail with 503
     return { delivered: false, code, error: error.message }
   }
 }

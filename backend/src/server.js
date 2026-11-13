@@ -11,6 +11,8 @@ const httpServer = http.createServer(app)
 const io = new Server(httpServer, {
   cors: { origin: corsOriginDelegate, credentials: true },
   maxHttpBufferSize: 2_000_000,
+  pingTimeout: 30000,
+  pingInterval: 25000,
   transports: ['websocket', 'polling'],
 })
 

@@ -7,7 +7,13 @@ if (socketUrl.includes('emstrap-backend.onrender.com') && !socketUrl.includes('e
 }
 const socket = io(socketUrl, {
   autoConnect: false,
-  transports: ['polling', 'websocket'],
+  transports: ['websocket'],
+  upgrade: false,
+  reconnection: true,
+  reconnectionAttempts: Infinity,
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000,
+  timeout: 20000,
   withCredentials: true,
   auth: (cb) => {
     const token = typeof window !== 'undefined' ? (localStorage.getItem('emstrap_token') || localStorage.getItem('emstrap_driver_token')) : null
@@ -15,7 +21,12 @@ const socket = io(socketUrl, {
   }
 })
 
-function connect() { if (!socket.connected) socket.connect(); return socket }
+function connect() {
+  if (!socket.connected && !socket.active) {
+    socket.connect()
+  }
+  return socket
+}
 
 export function dispatchEmergency(payload) {
   connect()

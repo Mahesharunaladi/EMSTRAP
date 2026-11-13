@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { activeEmergency, acceptDriverEmergency, currentDriver, loginDriver, logoutDriver, registerDriver, resendDriverVerification, updateDriverLocation, updateDriverProfile, uploadDriverDocuments, verifyDriverEmail } from '../controllers/driverController.js'
+import { activeEmergency, acceptDriverEmergency, updateDriverEmergencyStatus, currentDriver, loginDriver, logoutDriver, registerDriver, resendDriverVerification, updateDriverLocation, updateDriverProfile, uploadDriverDocuments, verifyDriverEmail } from '../controllers/driverController.js'
 import { authenticateDriver, optionalAuthenticateDriver } from '../middlewares/driverAuthMiddleware.js'
 import { rateLimit } from '../middlewares/rateLimit.js'
 import { acceptDriverBooking, getDriverBookings, updateDriverBookingLocation, updateDriverBookingStatus } from '../controllers/bookingController.js'
@@ -16,6 +16,7 @@ router.patch('/location', authenticateDriver, updateDriverLocation)
 router.post('/documents', authenticateDriver, uploadDriverDocuments)
 router.get('/active-emergency', authenticateDriver, activeEmergency)
 router.post('/emergency/:emergencyId/accept', authenticateDriver, acceptDriverEmergency)
+router.patch('/emergency/:emergencyId/status', authenticateDriver, updateDriverEmergencyStatus)
 router.get('/bookings', authenticateDriver, getDriverBookings)
 router.post('/bookings/:bookingId/accept', authenticateDriver, acceptDriverBooking)
 router.patch('/bookings/:bookingId/status', authenticateDriver, updateDriverBookingStatus)

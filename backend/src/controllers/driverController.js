@@ -71,3 +71,32 @@ export async function acceptDriverEmergency(req, res, next) {
   }
 }
 
+export async function updateDriverEmergencyStatus(req, res, next) {
+  try {
+    const { emergencyId } = req.params
+    const status = String(req.body.status || '').toUpperCase()
+    if (!['ARRIVED', 'RESOLVED', 'COMPLETED'].includes(status)) {
+      return res.status(400).json({ success: false, message: 'Invalid emergency status', data: null })
+    }
+    const finalStatus = status === 'COMPLETED' ? 'RESOLVED' : status
+    const emergency = await EmergencyRequest.findOneAndUpdate(
+      { _id: emergencyId, assignedDriverId: req.driver._id },
+      { $set: { status: finalStatus } },
+      { returnDocument: 'after' }
+    ).lean()
+    if (!emergency) return res.status(404).json({ success: false, message: 'Emergency not found or not assigned to you', data: null })
+
+    const io = req.app.get('io')
+    if (io) {
+      const userRoom = id => `user:${id}`
+      const payload = { emergencyId: emergency._id, status: emergency.status }
+      io.to('police_channel').emit('EMERGENCY_STATUS_UPDATED', payload)
+      if (emergency.userId) io.to(userRoom(emergency.userId.toString())).emit('EMERGENCY_STATUS_UPDATED', payload)
+    }
+
+    return res.json({ success: true, message: `Emergency marked as ${finalStatus}`, data: { emergency } })
+  } catch (error) {
+    next(error)
+  }
+}
+

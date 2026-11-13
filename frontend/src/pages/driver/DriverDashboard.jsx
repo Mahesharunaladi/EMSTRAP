@@ -219,10 +219,30 @@ export default function DriverDashboard() {
     if (!emergencyId || !driver?.id) return
     try {
       setEmergency(current => ({ ...current, status: 'ACCEPTED', assignedDriverId: driver.id }))
+      if (coords(emergency.location)) {
+        window.open(mapsUrl(emergency.location), '_blank')
+      }
       await acceptEmergency(emergencyId)
       toast.success('Emergency accepted · Responding to incident')
     } catch (err) {
       toast.error(err.message || 'Unable to accept emergency')
+    }
+  }
+
+  const updateEmergencyStatus = async status => {
+    const emergencyId = emergency?._id || emergency?.emergencyId
+    if (!emergencyId) return
+    try {
+      await api.patch(`/driver/emergency/${emergencyId}/status`, { status })
+      if (status === 'RESOLVED' || status === 'COMPLETED') {
+        setEmergency(null)
+        toast.success('Emergency incident completed & closed')
+      } else {
+        setEmergency(current => ({ ...current, status }))
+        toast.success(`Emergency marked as ${status}`)
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Unable to update status')
     }
   }
 
@@ -303,27 +323,81 @@ export default function DriverDashboard() {
         </div>
 
         {emergency && (
-          <section className="driver-alert">
-            <div className="flex items-start gap-3">
-              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-red-600 text-white">
-                <ShieldAlert size={22} />
-              </span>
-              <div className="min-w-0">
-                <p className="text-xs font-bold uppercase tracking-widest text-red-700">Emergency dispatch</p>
-                <h2 className="mt-1 text-lg font-bold">User needs an emergency ambulance</h2>
-                <p className="mt-1 break-words text-xs text-slate-600">
-                  Pickup: {emergency.location?.lat?.toFixed(5)}, {emergency.location?.lng?.toFixed(5)}
-                </p>
-                {coords(emergency.location) && (
-                  <a href={mapsUrl(emergency.location)} target="_blank" rel="noreferrer" className="mt-2 inline-block text-xs font-bold text-red-700 underline">
-                    Directions to emergency pickup
-                  </a>
-                )}
+          <section className="driver-alert border-2 border-red-500 rounded-3xl p-5 bg-white shadow-xl">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-red-600 text-white shadow-md shadow-red-200">
+                  <Siren size={24} className="animate-pulse" />
+                </span>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-bold uppercase tracking-widest text-red-700">Official SOS Dispatch</p>
+                    <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-red-700">
+                      {emergency.status}
+                    </span>
+                  </div>
+                  <h2 className="mt-1 font-display text-lg font-bold text-slate-950">Emergency Ambulance Required</h2>
+                  <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-600">
+                    <MapPin size={14} className="text-red-600 shrink-0" />
+                    Pickup: {emergency.location?.lat?.toFixed(5)}, {emergency.location?.lng?.toFixed(5)}
+                  </p>
+                </div>
               </div>
             </div>
-            <button onClick={accept} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 py-3 text-sm font-bold text-white shadow-lg shadow-red-600/30">
-              <Radio size={16} /> {emergency.status === 'ACCEPTED' ? 'Accepted · Responding' : 'Accept emergency'}
-            </button>
+
+            {/* Embedded Live Route Map */}
+            {coords(emergency.location) && (
+              <div className="mt-4 overflow-hidden rounded-2xl border border-red-200 bg-slate-100 shadow-inner">
+                <iframe
+                  title="Incident Map"
+                  className="h-48 w-full border-0"
+                  loading="lazy"
+                  src={`https://www.openstreetmap.org/export/embed.html?bbox=${Number(emergency.location.lng) - 0.008}%2C${Number(emergency.location.lat) - 0.008}%2C${Number(emergency.location.lng) + 0.008}%2C${Number(emergency.location.lat) + 0.008}&layer=mapnik&marker=${emergency.location.lat}%2C${emergency.location.lng}`}
+                />
+              </div>
+            )}
+
+            {/* Google Maps Turn-by-Turn GPS Directions */}
+            {coords(emergency.location) && (
+              <a
+                href={mapsUrl(emergency.location)}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3.5 text-sm font-bold text-white shadow-lg shadow-emerald-600/30 hover:bg-emerald-700 transition"
+              >
+                <Navigation size={18} /> Open Live GPS Navigation (Google Maps)
+              </a>
+            )}
+
+            {emergency.status === 'PENDING' ? (
+              <button
+                onClick={accept}
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 py-3.5 text-sm font-bold text-white shadow-lg shadow-red-600/30 hover:bg-red-700 transition"
+              >
+                <Radio size={18} /> Accept Emergency & Launch Navigation
+              </button>
+            ) : (
+              <div className="mt-3 space-y-2">
+                <div className="flex items-center justify-center gap-2 rounded-xl bg-red-50 py-2.5 text-xs font-bold text-red-700 border border-red-200">
+                  <span className="h-2 w-2 rounded-full bg-red-600 animate-ping" />
+                  Responding to Emergency Incident
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => updateEmergencyStatus('ARRIVED')}
+                    className="rounded-xl border border-slate-300 bg-white py-2.5 text-xs font-bold text-slate-800 hover:bg-slate-50 transition"
+                  >
+                    Mark Arrived at Scene
+                  </button>
+                  <button
+                    onClick={() => updateEmergencyStatus('RESOLVED')}
+                    className="rounded-xl bg-slate-950 py-2.5 text-xs font-bold text-white hover:bg-slate-800 transition"
+                  >
+                    Complete Emergency
+                  </button>
+                </div>
+              </div>
+            )}
           </section>
         )}
       </section>

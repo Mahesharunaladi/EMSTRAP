@@ -1,8 +1,10 @@
 import { io } from 'socket.io-client'
 
 const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-const defaultSocketUrl = isLocal ? 'http://localhost:5001' : 'https://emstrap-backend-utuo.onrender.com'
-const socketUrl = (import.meta.env.VITE_SOCKET_URL && import.meta.env.VITE_SOCKET_URL.trim() !== '') ? import.meta.env.VITE_SOCKET_URL : defaultSocketUrl
+let socketUrl = (import.meta.env.VITE_SOCKET_URL && import.meta.env.VITE_SOCKET_URL.trim() !== '') ? import.meta.env.VITE_SOCKET_URL : (isLocal ? 'http://localhost:5001' : 'https://emstrap-backend-utuo.onrender.com')
+if (socketUrl.includes('emstrap-backend.onrender.com') && !socketUrl.includes('emstrap-backend-utuo.onrender.com')) {
+  socketUrl = socketUrl.replace('emstrap-backend.onrender.com', 'emstrap-backend-utuo.onrender.com')
+}
 const socket = io(socketUrl, { autoConnect: false, transports: ['websocket'], withCredentials: true })
 
 function connect() { if (!socket.connected) socket.connect(); return socket }

@@ -25,12 +25,52 @@ if (smtpConfigured) {
   }
 }
 
+async function sendViaResend(email, name, code) {
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey) return false
+
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      from: process.env.EMAIL_FROM || 'EmSTraP <onboarding@resend.dev>',
+      to: [email],
+      subject: 'Verify your EmSTraP email',
+      html: `<div style="font-family:Arial,sans-serif;max-width:520px"><h2>Verify your EmSTraP email</h2><p>Hi ${name || 'User'}, use this code to finish creating your account:</p><p style="font-size:32px;font-weight:700;letter-spacing:8px;color:#dc2626">${code}</p><p>This code expires in 10 minutes. If you did not request it, you can ignore this email.</p></div>`
+    })
+  })
+
+  if (res.ok) {
+    const data = await res.json()
+    console.log(`[email] Successfully delivered via Resend API to ${email}: ${data.id}`)
+    return true
+  } else {
+    const errData = await res.text()
+    console.error(`[email error] Resend API error:`, errData)
+    return false
+  }
+}
+
 export async function sendVerificationCode({ email, name, code }) {
   console.log(`[AUTH-OTP] ========================================`)
   console.log(`[AUTH-OTP] Recipient: ${email}`)
   console.log(`[AUTH-OTP] Verification Code: ${code}`)
   console.log(`[AUTH-OTP] ========================================`)
 
+  // 1. Try Resend HTTP API - works 100% on Render because port 443 HTTPS is never blocked
+  if (process.env.RESEND_API_KEY) {
+    try {
+      const sent = await sendViaResend(email, name, code)
+      if (sent) return { delivered: true, code }
+    } catch (err) {
+      console.error('[email error] Resend failed:', err.message)
+    }
+  }
+
+  // 2. Fallback to SMTP
   if (!transporter) {
     console.warn(`[email] SMTP is not configured. Verification code for ${email}: ${code}`)
     return { delivered: false, code }

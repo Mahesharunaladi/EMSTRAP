@@ -1,4 +1,5 @@
 import { io } from 'socket.io-client'
+import api from './api'
 
 const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
 let socketUrl = (import.meta.env.VITE_SOCKET_URL && import.meta.env.VITE_SOCKET_URL.trim() !== '') ? import.meta.env.VITE_SOCKET_URL : (isLocal ? 'http://localhost:5001' : 'https://emstrap-backend-utuo.onrender.com')
@@ -28,16 +29,24 @@ function connect() {
   return socket
 }
 
-export function dispatchEmergency(payload) {
-  connect()
-  if (payload.userId) socket.emit('join_room', { userId: payload.userId })
-  return new Promise((resolve, reject) => {
-    socket.timeout(20000).emit('emergency:dispatch', { ...payload, targets: ['government-drivers', 'police-command'] }, (error, response) => {
-      if (error) return reject(new Error('Emergency dispatch timed out. Check your connection and try again.'))
-      if (!response?.success) return reject(new Error(response?.message || 'Emergency dispatch failed. Please try again.'))
-      resolve(response.data)
+export async function dispatchEmergency(payload) {
+  try {
+    const { data } = await api.post('/emergency/dispatch', payload)
+    if (socket.connected && payload.userId) {
+      socket.emit('join_room', { userId: payload.userId })
+    }
+    return data.data
+  } catch (httpError) {
+    return new Promise((resolve, reject) => {
+      connect()
+      if (payload.userId) socket.emit('join_room', { userId: payload.userId })
+      socket.timeout(10000).emit('emergency:dispatch', { ...payload, targets: ['government-drivers', 'police-command'] }, (error, response) => {
+        if (error) return reject(new Error('Emergency dispatch timed out. Check your connection and try again.'))
+        if (!response?.success) return reject(new Error(response?.message || 'Emergency dispatch failed. Please try again.'))
+        resolve(response.data)
+      })
     })
-  })
+  }
 }
 
 export function uploadEmergencyEvidence(payload) {

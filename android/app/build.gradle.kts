@@ -27,7 +27,7 @@ android {
         versionCode = 1
         versionName = "1.0"
         manifestPlaceholders["mapsApiKey"] = mapsApiKey
-        buildConfigField("String", "BACKEND_BASE_URL", "\"${backendBaseUrl.ifBlank { "http://10.0.2.2:5001" }}\"")
+        buildConfigField("String", "BACKEND_BASE_URL", "\"${backendBaseUrl.ifBlank { "https://emstrap-backend-utuo.onrender.com" }}\"")
     }
 
     buildFeatures {

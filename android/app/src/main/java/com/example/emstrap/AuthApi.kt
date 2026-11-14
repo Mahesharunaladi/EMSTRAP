@@ -57,8 +57,11 @@ internal fun Throwable.userMessage(): String {
             }
         }.getOrNull()
         if (!responseMessage.isNullOrBlank()) return responseMessage
+        return "Server error (${code()}). Please try again."
     }
-    return message?.takeIf { it.contains("Unable to resolve host") || it.contains("Failed to connect") }
-        ?.let { "Can't reach EmSTraP. Check the backend address and your network." }
-        ?: "Something went wrong. Please try again."
+    val err = message.orEmpty()
+    if (err.contains("Unable to resolve host", ignoreCase = true) || err.contains("Failed to connect", ignoreCase = true) || err.contains("CLEARTEXT", ignoreCase = true) || err.contains("timeout", ignoreCase = true)) {
+        return "Can't reach EmSTraP server. Check your internet connection."
+    }
+    return if (err.isNotBlank()) err else "Something went wrong. Please try again."
 }

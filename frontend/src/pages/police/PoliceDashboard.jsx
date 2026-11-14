@@ -76,8 +76,26 @@ export default function PoliceDashboard() {
       <div className="mx-auto w-full max-w-[760px]">
         <header className="flex items-center justify-between border-b border-slate-200 pb-5">
           <div>
-            <img src="/emstrap-logo.png" alt="EmSTraP" className="mb-4 h-12 w-auto" />
-            <p className="text-xs font-bold uppercase tracking-[.2em] text-red-600">Police command</p>
+            <div className="flex items-center gap-3">
+              <img src="/emstrap-logo.png" alt="EmSTraP" className="h-12 w-auto" />
+              <div className="flex items-center gap-1.5">
+                <a
+                  href="/app"
+                  title="Open Citizen Portal"
+                  className="rounded-full bg-slate-200 px-2.5 py-1 text-[11px] font-bold text-slate-800 transition hover:bg-slate-300"
+                >
+                  Citizen
+                </a>
+                <a
+                  href="/driver"
+                  title="Open Driver Portal"
+                  className="rounded-full bg-slate-900 px-2.5 py-1 text-[11px] font-bold text-white transition hover:bg-slate-800"
+                >
+                  Driver
+                </a>
+              </div>
+            </div>
+            <p className="mt-3 text-xs font-bold uppercase tracking-[.2em] text-red-600">Police command</p>
             <h1 className="mt-1 font-display text-3xl font-bold">Live emergency tracking</h1>
           </div>
           <span className="flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-2 text-xs font-bold text-emerald-700">

@@ -1,4 +1,4 @@
-import { Activity, Bell, CheckCircle2, Grid2X2, Home, MapPin, Search, UserRound } from 'lucide-react'
+import { Activity, Ambulance, Bell, CheckCircle2, Grid2X2, Home, MapPin, Search, ShieldAlert, UserRound } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
@@ -64,14 +64,26 @@ export default function MobileAppShell({ children }) {
                 </button>
               </div>
             </div>
-            <button className="relative !border-0 !bg-transparent !p-2 text-slate-900">
-              <Bell size={20} />
-              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-[#f7f7f5]" />
-            </button>
+            <div className="flex items-center gap-1.5">
+              <Link
+                to="/driver"
+                title="Open Driver Portal"
+                className="flex items-center gap-1 rounded-full bg-slate-900 px-2.5 py-1 text-[11px] font-bold text-white shadow-sm transition hover:bg-slate-800"
+              >
+                <Ambulance size={13} className="text-red-400" /> Driver
+              </Link>
+              <Link
+                to="/police"
+                title="Open Police Portal"
+                className="flex items-center gap-1 rounded-full bg-blue-900 px-2.5 py-1 text-[11px] font-bold text-white shadow-sm transition hover:bg-blue-800"
+              >
+                <ShieldAlert size={13} className="text-blue-300" /> Police
+              </Link>
+            </div>
           </div>
-          <div className="mt-4 flex items-center justify-between">
+          <div className="mt-3 flex items-center justify-between">
             <Link to="/app" aria-label="EmSTraP home" className="flex items-center">
-              <img src="/emstrap-logo.png" alt="EmSTraP" className="h-12 w-auto" />
+              <img src="/emstrap-logo.png" alt="EmSTraP" className="h-11 w-auto" />
             </Link>
             <p className="text-xs font-medium text-slate-500">Hi, {user?.name?.split(' ')[0] || 'there'} 👋</p>
           </div>

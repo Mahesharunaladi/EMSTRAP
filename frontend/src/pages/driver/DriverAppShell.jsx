@@ -1,7 +1,10 @@
-import { Activity, Bell, Map, ShieldAlert, Truck, UserRound } from 'lucide-react'
+import { Activity, Bell, Home, Map, ShieldAlert, Truck, UserRound } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 
-const tabs = [{ to: '/driver/dashboard', label: 'Dispatch', icon: Map }, { to: '/driver/profile', label: 'Profile', icon: UserRound }]
+const tabs = [
+  { to: '/driver/dashboard', label: 'Dispatch', icon: Map },
+  { to: '/driver/profile', label: 'Profile', icon: UserRound }
+]
 
 export default function DriverAppShell({ children, driver }) {
   const location = useLocation()
@@ -19,10 +22,22 @@ export default function DriverAppShell({ children, driver }) {
               {roleBadge}
             </span>
           </Link>
-          <button className="relative !border-0 !bg-transparent !p-2 text-slate-900">
-            <Bell size={20} />
-            <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500" />
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              to="/app"
+              title="Return to Citizen Portal"
+              className="flex items-center gap-1 rounded-full bg-slate-200 px-2.5 py-1 text-[11px] font-bold text-slate-800 transition hover:bg-slate-300"
+            >
+              <Home size={12} /> Citizen
+            </Link>
+            <Link
+              to="/police"
+              title="Open Police Command"
+              className="flex items-center gap-1 rounded-full bg-blue-900 px-2.5 py-1 text-[11px] font-bold text-white transition hover:bg-blue-800"
+            >
+              <ShieldAlert size={12} className="text-blue-300" /> Police
+            </Link>
+          </div>
         </div>
         <div className="mt-4 flex items-center justify-between">
           <div>

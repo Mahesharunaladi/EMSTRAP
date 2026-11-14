@@ -2,6 +2,8 @@ package com.example.emstrap
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.ActivityNotFoundException
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
@@ -35,7 +37,7 @@ class MainActivity : ComponentActivity() {
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) {
-        // Permissions granted
+        // Permissions handled
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -63,6 +65,7 @@ class MainActivity : ComponentActivity() {
                 useWideViewPort = true
                 loadWithOverviewMode = true
                 mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                setSupportMultipleWindows(true)
             }
 
             val cookieManager = CookieManager.getInstance()
@@ -71,11 +74,69 @@ class MainActivity : ComponentActivity() {
 
             webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                    val uri = request?.url ?: return false
+                    val url = uri.toString()
+
+                    // Handle intent: scheme (Google Maps, apps, etc.)
+                    if (url.startsWith("intent:")) {
+                        try {
+                            val intent = Intent.parseUri(url, Intent.URI_INTENT_SCHEME)
+                            if (intent != null) {
+                                try {
+                                    startActivity(intent)
+                                    return true
+                                } catch (e: ActivityNotFoundException) {
+                                    // Fallback to browser URL if available in intent
+                                    val fallbackUrl = intent.getStringExtra("browser_fallback_url")
+                                    if (fallbackUrl != null) {
+                                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(fallbackUrl)))
+                                        return true
+                                    }
+                                }
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+
+                    // Handle Google Maps, tel:, mailto:, geo: links
+                    if (url.contains("google.com/maps") || url.startsWith("geo:") || url.startsWith("tel:") || url.startsWith("mailto:")) {
+                        try {
+                            val intent = Intent(Intent.ACTION_VIEW, uri)
+                            startActivity(intent)
+                            return true
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+
+                    // Keep normal in-app navigation within webview
                     return false
                 }
             }
 
             webChromeClient = object : WebChromeClient() {
+                override fun onCreateWindow(
+                    view: WebView?,
+                    isDialog: Boolean,
+                    isUserGesture: Boolean,
+                    resultMsg: android.os.Message?
+                ): Boolean {
+                    val hitTest = view?.hitTestResult
+                    val extra = hitTest?.extra
+                    if (!extra.isNullOrBlank()) {
+                        // Open external popup / new window (like Google Maps) in external app/browser
+                        try {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(extra))
+                            startActivity(intent)
+                            return true
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                    return false
+                }
+
                 override fun onGeolocationPermissionsShowPrompt(
                     origin: String?,
                     callback: GeolocationPermissions.Callback?
@@ -114,7 +175,6 @@ class MainActivity : ComponentActivity() {
             }
         })
 
-        // Load the full User Portal web app
         webView.loadUrl("https://emstrap-user.onrender.com")
     }
 

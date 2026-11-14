@@ -24,10 +24,22 @@ export async function dispatchEmergencyHttp(req, res, next) {
       ? req.body.incidentDetails.trim().slice(0, 1000)
       : undefined
 
+    let incidentImage = null
+    if (req.body.image && typeof req.body.image === 'string' && /^data:image\/(jpeg|png|webp);base64,/i.test(req.body.image)) {
+      try {
+        incidentImage = await uploadImage(req.body.image)
+      } catch (_) {}
+      // Fallback: If Cloudinary is not configured or fails, store the image directly as data-URI
+      if (!incidentImage?.url) {
+        incidentImage = { url: req.body.image, publicId: `incident-${Date.now()}` }
+      }
+    }
+
     const request = await EmergencyRequest.create({
       userId: user?._id,
       anonymous: !user,
       location,
+      incidentImage: incidentImage || undefined,
       incidentDetails,
     })
 
@@ -43,7 +55,7 @@ export async function dispatchEmergencyHttp(req, res, next) {
       emergencyId: request._id,
       status: request.status,
       location: request.location,
-      incidentImage: null,
+      incidentImage,
       userId: caller,
       createdAt: request.createdAt,
     }
@@ -54,20 +66,6 @@ export async function dispatchEmergencyHttp(req, res, next) {
       if (user) {
         io.to(userRoom(user._id.toString())).emit('EMERGENCY_DISPATCH_RECEIVED', alert)
       }
-    }
-
-    if (req.body.image && typeof req.body.image === 'string' && /^data:image\/(jpeg|png|webp);base64,/i.test(req.body.image)) {
-      uploadImage(req.body.image)
-        .then(async uploaded => {
-          if (uploaded?.url) {
-            await EmergencyRequest.findByIdAndUpdate(request._id, { $set: { incidentImage: uploaded } })
-            if (io) {
-              const updatedAlert = { ...alert, incidentImage: uploaded }
-              io.to(ROOMS.govtDriver).to(ROOMS.police).emit('EMERGENCY_IMAGE_UPDATED', updatedAlert)
-            }
-          }
-        })
-        .catch(err => console.error('[cloudinary non-blocking error]', err.message))
     }
 
     return res.status(201).json({

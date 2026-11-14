@@ -45,7 +45,15 @@ async function persistEmergency(payload, user) {
   if (!location) throw new Error('A valid location with lat and lng is required')
   const incidentDetails = typeof payload.incidentDetails === 'string' ? payload.incidentDetails.trim().slice(0, 1000) : undefined
   if (payload.image && (typeof payload.image !== 'string' || payload.image.length > 1_500_000 || !/^data:image\/(jpeg|png|webp);base64,/i.test(payload.image))) throw new Error('Incident evidence must be a JPEG, PNG, or WebP image under 1.5 MB')
-  const incidentImage = payload.image ? await uploadImage(payload.image) : null
+  let incidentImage = null
+  if (payload.image) {
+    try {
+      incidentImage = await uploadImage(payload.image)
+    } catch (_) {}
+    if (!incidentImage?.url) {
+      incidentImage = { url: payload.image, publicId: `incident-${Date.now()}` }
+    }
+  }
   const request = await EmergencyRequest.create({ userId: user?._id, anonymous: !user, location, incidentImage: incidentImage || undefined, incidentDetails })
   await EmergencyAlert.create({ emergencyRequestId: request._id, type: 'NEW_EMERGENCY_ALERT', recipients: [ROOMS.govtDriver, ROOMS.police], deliveredAt: new Date() })
   return request

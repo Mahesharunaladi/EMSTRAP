@@ -54,9 +54,39 @@ export default function BookedAmbulanceCard({ booking }) {
       </div>
     </div>}
 
-    {hasCoords(driverLocation) ? <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-emerald-100 bg-emerald-50 p-3">
-      <div><p className="text-xs font-bold text-emerald-900">Ambulance location updated</p><p className="mt-1 text-[11px] text-emerald-800">{Number(driverLocation.lat).toFixed(5)}, {Number(driverLocation.lng).toFixed(5)}</p><p className="text-[10px] text-emerald-700">Updates every few seconds while the trip is active</p></div>
-      <a href={mapsUrl(driverLocation)} target="_blank" rel="noreferrer" aria-label="Open ambulance location in Maps" className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-emerald-700 text-white"><Navigation size={17} /></a>
-    </div> : booking.status === 'ACCEPTED' || booking.status === 'STARTED' ? <p className="mt-3 text-[11px] text-slate-500">Waiting for the driver’s first location update.</p> : null}
+    {/* Live Map with Driver's Realtime Position and Movement */}
+    {hasCoords(driverLocation) ? (
+      <div className="mt-4 space-y-3">
+        <div className="overflow-hidden rounded-2xl border border-blue-200 bg-slate-100 shadow-inner">
+          <iframe
+            title="Live Driver Tracking Map"
+            className="h-44 w-full border-0"
+            loading="lazy"
+            src={`https://www.openstreetmap.org/export/embed.html?bbox=${Number(driverLocation.lng) - 0.008}%2C${Number(driverLocation.lat) - 0.008}%2C${Number(driverLocation.lng) + 0.008}%2C${Number(driverLocation.lat) + 0.008}&layer=mapnik&marker=${driverLocation.lat}%2C${driverLocation.lng}`}
+          />
+        </div>
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-100 bg-emerald-50 p-3">
+          <div>
+            <p className="text-xs font-bold text-emerald-900">Driver moving · Live position</p>
+            <p className="mt-1 text-[11px] text-emerald-800">{Number(driverLocation.lat).toFixed(5)}, {Number(driverLocation.lng).toFixed(5)}</p>
+            <p className="text-[10px] text-emerald-700">Live coordinates refreshing as driver moves</p>
+          </div>
+          <a
+            href={mapsUrl(driverLocation)}
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Open ambulance location in Google Maps"
+            className="flex items-center gap-1.5 rounded-xl bg-emerald-700 px-3 py-2 text-xs font-bold text-white shadow hover:bg-emerald-800"
+          >
+            <Navigation size={15} /> Open Maps
+          </a>
+        </div>
+      </div>
+    ) : booking.status === 'ACCEPTED' || booking.status === 'STARTED' ? (
+      <div className="mt-3 flex items-center gap-2 rounded-xl bg-amber-50 p-3 text-xs text-amber-800 border border-amber-200">
+        <span className="h-2 w-2 rounded-full bg-amber-500 animate-ping" />
+        Driver assigned · Waiting for driver's GPS coordinates to display live map...
+      </div>
+    ) : null}
   </article>
 }

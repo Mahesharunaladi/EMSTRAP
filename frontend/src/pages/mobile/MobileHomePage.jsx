@@ -78,7 +78,38 @@ export default function MobileHomePage() {
 
     {emergency && <section className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4">
       <div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-red-600 text-white"><Siren size={19} /></span><div><p className="text-xs font-bold uppercase tracking-wider text-red-700">Emergency active</p><p className="text-sm font-bold">Help is on the way</p></div></div>
-      <div className="driver-map mt-4 h-44"><div className="driver-map-grid" /><span className="driver-marker driver-marker-user"><MapPin size={16} fill="currentColor" /></span>{driverLocation && <span className="driver-marker driver-marker-you"><LocateFixed size={15} /></span>}<div className="absolute bottom-2 left-2 rounded-lg bg-white/90 px-2 py-1 text-[10px] font-bold">{driverLocation ? 'Driver location live' : 'Waiting for driver location'}</div></div>
+      
+      {/* Realtime OpenStreetMap embed when driver location is live */}
+      {driverLocation?.lat && driverLocation?.lng ? (
+        <div className="mt-4 overflow-hidden rounded-2xl border border-red-200 bg-slate-100 shadow-inner">
+          <iframe
+            title="Emergency Driver Tracking"
+            className="h-48 w-full border-0"
+            loading="lazy"
+            src={`https://www.openstreetmap.org/export/embed.html?bbox=${Number(driverLocation.lng) - 0.008}%2C${Number(driverLocation.lat) - 0.008}%2C${Number(driverLocation.lng) + 0.008}%2C${Number(driverLocation.lat) + 0.008}&layer=mapnik&marker=${driverLocation.lat}%2C${driverLocation.lng}`}
+          />
+        </div>
+      ) : (
+        <div className="driver-map mt-4 h-44"><div className="driver-map-grid" /><span className="driver-marker driver-marker-user"><MapPin size={16} fill="currentColor" /></span><div className="absolute bottom-2 left-2 rounded-lg bg-white/90 px-2 py-1 text-[10px] font-bold">Waiting for responder's GPS coordinates...</div></div>
+      )}
+
+      {driverLocation && (
+        <div className="mt-3 flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 p-2.5 text-xs text-emerald-900">
+          <span className="flex items-center gap-1.5 font-bold">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            Live ambulance coordinates: {Number(driverLocation.lat).toFixed(5)}, {Number(driverLocation.lng).toFixed(5)}
+          </span>
+          <a
+            href={`https://www.google.com/maps?q=${driverLocation.lat},${driverLocation.lng}`}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-lg bg-emerald-700 px-2.5 py-1 text-[11px] font-bold text-white shadow"
+          >
+            Google Maps
+          </a>
+        </div>
+      )}
+
       {driverPhoto && <div className="mt-3 flex items-center gap-3"><img src={driverPhoto} alt="Assigned driver" className="h-10 w-10 rounded-full object-cover" /><div><p className="text-xs font-bold">Your assigned driver</p><p className="text-[11px] text-slate-600">Verified driver photo</p></div></div>}
     </section>}
 

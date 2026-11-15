@@ -19,27 +19,29 @@ export default function AuthLayout({ eyebrow, title, description, children, foot
           </span>
         </header>
 
-        {/* Portal Switcher Tabs */}
-        <div className="mt-3 flex items-center justify-center rounded-2xl bg-slate-200/70 p-1 text-xs font-bold text-slate-600">
-          <Link
-            to="/signin"
-            className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2 transition ${isUser ? 'bg-white text-slate-950 shadow-sm' : 'hover:text-slate-900'}`}
-          >
-            <User size={14} /> Citizen
-          </Link>
-          <Link
-            to="/driver"
-            className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2 transition ${isDriver ? 'bg-white text-slate-950 shadow-sm' : 'hover:text-slate-900'}`}
-          >
-            <Ambulance size={14} /> Driver
-          </Link>
-          <Link
-            to="/police"
-            className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2 transition ${isPolice ? 'bg-white text-slate-950 shadow-sm' : 'hover:text-slate-900'}`}
-          >
-            <ShieldAlert size={14} /> Police
-          </Link>
-        </div>
+        {/* Only show operational portal tabs when visiting driver or police auth */}
+        {(isDriver || isPolice) && (
+          <div className="mt-3 flex items-center justify-center rounded-2xl bg-slate-200/70 p-1 text-xs font-bold text-slate-600">
+            <Link
+              to="/signin"
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2 transition ${isUser ? 'bg-white text-slate-950 shadow-sm' : 'hover:text-slate-900'}`}
+            >
+              <User size={14} /> Citizen
+            </Link>
+            <Link
+              to="/driver"
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2 transition ${isDriver ? 'bg-white text-slate-950 shadow-sm' : 'hover:text-slate-900'}`}
+            >
+              <Ambulance size={14} /> Driver
+            </Link>
+            <Link
+              to="/police"
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2 transition ${isPolice ? 'bg-white text-slate-950 shadow-sm' : 'hover:text-slate-900'}`}
+            >
+              <ShieldAlert size={14} /> Police
+            </Link>
+          </div>
+        )}
 
         <section className="flex flex-1 flex-col justify-center py-6">
           <div className="mb-6">

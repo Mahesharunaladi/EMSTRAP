@@ -260,7 +260,10 @@ export default function DriverDashboard() {
     try {
       const { data } = await api.post(`/driver/bookings/${booking._id}/accept`)
       setBookings(current => [data.data.booking, ...current.filter(item => String(item._id) !== String(booking._id))])
-      toast.success('Booking accepted. Pickup and drop-off are ready.')
+      if (coords(booking.pickupLocation)) {
+        window.open(mapsUrl(booking.pickupLocation), '_blank')
+      }
+      toast.success('Booking accepted. Directions to pickup launched.')
     } catch (error) { toast.error(error.response?.data?.message || 'This booking is no longer available') }
   }
 
@@ -507,8 +510,18 @@ export default function DriverDashboard() {
               ) : (
                 <div className="mt-4 space-y-2">
                   {coords(booking.pickupLocation) && (
+                    <div className="overflow-hidden rounded-2xl border border-blue-200 bg-slate-100 shadow-inner">
+                      <iframe
+                        title="Pickup Map"
+                        className="h-44 w-full border-0"
+                        loading="lazy"
+                        src={`https://www.openstreetmap.org/export/embed.html?bbox=${Number(booking.pickupLocation.lng) - 0.008}%2C${Number(booking.pickupLocation.lat) - 0.008}%2C${Number(booking.pickupLocation.lng) + 0.008}%2C${Number(booking.pickupLocation.lat) + 0.008}&layer=mapnik&marker=${booking.pickupLocation.lat}%2C${booking.pickupLocation.lng}`}
+                      />
+                    </div>
+                  )}
+                  {coords(booking.pickupLocation) && (
                     <a href={mapsUrl(booking.pickupLocation)} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 rounded-xl bg-emerald-700 py-3 text-sm font-bold text-white">
-                      <Navigation size={16} /> Directions to pickup
+                      <Navigation size={16} /> Live Turn-by-Turn GPS Directions
                     </a>
                   )}
                   {coords(booking.pickupLocation) && coords(booking.destinationLocation) && (

@@ -64,22 +64,6 @@ export default function MobileAppShell({ children }) {
                 </button>
               </div>
             </div>
-            <div className="flex items-center gap-1.5">
-              <Link
-                to="/driver"
-                title="Open Driver Portal"
-                className="flex items-center gap-1 rounded-full bg-slate-900 px-2.5 py-1 text-[11px] font-bold text-white shadow-sm transition hover:bg-slate-800"
-              >
-                <Ambulance size={13} className="text-red-400" /> Driver
-              </Link>
-              <Link
-                to="/police"
-                title="Open Police Portal"
-                className="flex items-center gap-1 rounded-full bg-blue-900 px-2.5 py-1 text-[11px] font-bold text-white shadow-sm transition hover:bg-blue-800"
-              >
-                <ShieldAlert size={13} className="text-blue-300" /> Police
-              </Link>
-            </div>
           </div>
           <div className="mt-3 flex items-center justify-between">
             <Link to="/app" aria-label="EmSTraP home" className="flex items-center">

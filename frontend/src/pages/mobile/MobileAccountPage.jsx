@@ -35,37 +35,6 @@ export default function MobileAccountPage() {
         </div>
       </div>
 
-      {/* Switch Portals Section */}
-      <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-        <p className="px-2 pt-1 text-[11px] font-bold uppercase tracking-wider text-slate-500">Switch Operational Portals</p>
-        <div className="mt-2 grid grid-cols-2 gap-2">
-          <Link
-            to="/driver"
-            className="flex items-center gap-2 rounded-xl bg-slate-50 p-3 text-xs font-bold text-slate-800 transition hover:bg-red-50 hover:text-red-700"
-          >
-            <span className="grid h-8 w-8 place-items-center rounded-lg bg-red-100 text-red-600">
-              <Ambulance size={16} />
-            </span>
-            <div>
-              <p className="font-bold">Driver Portal</p>
-              <p className="text-[10px] text-slate-500 font-normal">Ambulance dispatch</p>
-            </div>
-          </Link>
-          <Link
-            to="/police"
-            className="flex items-center gap-2 rounded-xl bg-slate-50 p-3 text-xs font-bold text-slate-800 transition hover:bg-slate-100 hover:text-slate-950"
-          >
-            <span className="grid h-8 w-8 place-items-center rounded-lg bg-blue-100 text-blue-700">
-              <ShieldAlert size={16} />
-            </span>
-            <div>
-              <p className="font-bold">Police Command</p>
-              <p className="text-[10px] text-slate-500 font-normal">Emergency tracking</p>
-            </div>
-          </Link>
-        </div>
-      </div>
-
       <div className="mt-5 space-y-2">
         {items.map(({ to, label, detail, icon: Icon }) => (
           <Link key={to} to={to} className="mobile-account-row">

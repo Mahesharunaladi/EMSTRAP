@@ -53,9 +53,11 @@ export async function dispatchEmergencyHttp(req, res, next) {
     const caller = user ? { _id: user._id, name: user.name, phone: user.phone } : null
     const alert = {
       emergencyId: request._id,
+      _id: request._id,
       status: request.status,
       location: request.location,
       incidentImage,
+      incidentDetails: request.incidentDetails,
       userId: caller,
       createdAt: request.createdAt,
     }

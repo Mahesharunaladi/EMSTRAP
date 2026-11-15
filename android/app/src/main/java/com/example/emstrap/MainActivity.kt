@@ -175,7 +175,8 @@ class MainActivity : ComponentActivity() {
             }
         })
 
-        webView.loadUrl("https://emstrap-user.onrender.com")
+        val startUrl = if (BuildConfig.PORTAL_START_URL.isNotBlank()) BuildConfig.PORTAL_START_URL else "https://emstrap-user.onrender.com"
+        webView.loadUrl(startUrl)
     }
 
     private fun checkAndRequestPermissions() {

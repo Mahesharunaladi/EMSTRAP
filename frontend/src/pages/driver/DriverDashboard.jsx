@@ -1,4 +1,4 @@
-import { Ambulance, CircleUserRound, LocateFixed, MapPin, Navigation, Radio, Siren, ShieldAlert } from 'lucide-react'
+import { Ambulance, Camera, CircleUserRound, Eye, LocateFixed, MapPin, Navigation, Radio, Siren, ShieldAlert, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
@@ -25,6 +25,7 @@ export default function DriverDashboard() {
   const [canReceiveBookings, setCanReceiveBookings] = useState(false)
   const [online, setOnline] = useState(true)
   const [locationStatus, setLocationStatus] = useState('Location sharing starts after accepting a request')
+  const [modalImage, setModalImage] = useState(null)
 
   const isGovtDriver = driver?.driverType === 'GOVERNMENT'
   const isPrivateDriver = driver?.driverType === 'PRIVATE'
@@ -350,9 +351,50 @@ export default function DriverDashboard() {
                     <MapPin size={14} className="text-red-600 shrink-0" />
                     Pickup: {emergency.location?.lat?.toFixed(5)}, {emergency.location?.lng?.toFixed(5)}
                   </p>
+                  {emergency.userId?.name && (
+                    <p className="mt-0.5 text-xs text-slate-700">
+                      Victim: <b>{emergency.userId.name}</b>{emergency.userId.phone ? ` · ${emergency.userId.phone}` : ''}
+                    </p>
+                  )}
+                  {emergency.incidentDetails && (
+                    <p className="mt-1.5 text-xs text-slate-700 bg-red-50 rounded-lg p-2 border border-red-100">
+                      <span className="font-semibold text-red-900">Details: </span>{emergency.incidentDetails}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
+
+            {/* Incident Evidence Photo uploaded by User */}
+            {(emergency.incidentImage?.url || (typeof emergency.incidentImage === 'string' && emergency.incidentImage)) && (
+              <div className="mt-4 overflow-hidden rounded-2xl border border-red-200/80 bg-slate-950 p-2 text-white">
+                <div className="flex items-center justify-between px-1 pb-1.5 text-[11px] font-bold text-red-400">
+                  <span className="flex items-center gap-1.5">
+                    <Camera size={14} /> Incident Scene Evidence
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setModalImage(emergency.incidentImage?.url || emergency.incidentImage)}
+                    className="flex items-center gap-1 rounded bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-slate-200 hover:bg-white/20 transition"
+                  >
+                    <Eye size={12} /> Full view
+                  </button>
+                </div>
+                <div
+                  onClick={() => setModalImage(emergency.incidentImage?.url || emergency.incidentImage)}
+                  className="group relative cursor-pointer overflow-hidden rounded-xl bg-black"
+                >
+                  <img
+                    src={emergency.incidentImage?.url || emergency.incidentImage}
+                    alt="Incident Evidence Scene"
+                    className="h-44 w-full object-cover transition duration-300 group-hover:scale-105"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 transition group-hover:opacity-100 flex items-end justify-center p-2">
+                    <span className="rounded bg-black/70 px-2 py-1 text-[11px] font-bold text-white">Click to enlarge</span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Embedded Live Route Map */}
             {coords(emergency.location) && (
@@ -501,5 +543,39 @@ export default function DriverDashboard() {
     <Link to="/driver/profile" className="mt-5 flex items-center justify-center gap-2 text-sm font-bold text-slate-600">
       <CircleUserRound size={17} /> View driver profile
     </Link>
+
+    {/* Lightbox / Modal for enlarged Incident Image */}
+    {modalImage && (
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+        onClick={() => setModalImage(null)}
+      >
+        <div
+          className="relative max-h-[90vh] max-w-lg overflow-hidden rounded-2xl bg-slate-950 p-2 shadow-2xl border border-slate-700"
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between pb-2 px-2 text-white">
+            <div className="flex items-center gap-2">
+              <Camera size={16} className="text-red-400" />
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-200">Incident Scene Evidence</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setModalImage(null)}
+              className="rounded-full bg-white/10 p-1.5 text-slate-300 hover:bg-white/20 hover:text-white transition"
+            >
+              <X size={18} />
+            </button>
+          </div>
+          <img
+            src={modalImage}
+            alt="Full incident scene evidence"
+            className="max-h-[80vh] w-auto rounded-xl object-contain mx-auto"
+          />
+        </div>
+      </div>
+    )}
   </DriverAppShell>
 }

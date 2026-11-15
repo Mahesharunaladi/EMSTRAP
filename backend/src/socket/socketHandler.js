@@ -136,7 +136,7 @@ export function registerSocketHandlers(io) {
         const request = await persistEmergency(payload, user)
         socket.join(emergencyRoom(request._id.toString()))
         const caller = user ? { _id: user._id, name: user.name, phone: user.phone } : null
-        const alert = { emergencyId: request._id, status: request.status, location: request.location, incidentImage: request.incidentImage, userId: caller }
+        const alert = { emergencyId: request._id, _id: request._id, status: request.status, location: request.location, incidentImage: request.incidentImage, incidentDetails: request.incidentDetails, userId: caller }
         io.to(ROOMS.govtDriver).to(ROOMS.police).emit('NEW_EMERGENCY_ALERT', alert)
         if (user) io.to(userRoom(user._id.toString())).emit('EMERGENCY_DISPATCH_RECEIVED', alert)
         socket.emit('emergency:created', { success: true, data: alert })

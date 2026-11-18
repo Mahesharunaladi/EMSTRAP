@@ -17,12 +17,25 @@ import DriverDashboard from './pages/driver/DriverDashboard'
 import DriverProfile from './pages/driver/DriverProfile'
 import PoliceDashboard from './pages/police/PoliceDashboard'
 
+function RootRedirect() {
+  const { user, loading } = useAuth()
+  if (loading) {
+    return <div className="grid min-h-screen place-items-center bg-[#f7f7f5] text-sm font-semibold text-slate-500">Loading your secure session…</div>
+  }
+  return user ? <Navigate to="/app" replace /> : <Navigate to="/signin" replace />
+}
+
 function PublicRoute({ children }) {
-  return children
+  const { user, loading } = useAuth()
+  if (loading) {
+    return <div className="grid min-h-screen place-items-center bg-[#f7f7f5] text-sm font-semibold text-slate-500">Loading your secure session…</div>
+  }
+  return user ? <Navigate to="/app" replace /> : children
 }
 
 function DriverRoute({ children }) {
-  return sessionStorage.getItem('emstrap_driver_session') ? children : <Navigate to="/driver" replace />
+  const hasSession = localStorage.getItem('emstrap_driver_token') || sessionStorage.getItem('emstrap_driver_session')
+  return hasSession ? children : <Navigate to="/driver" replace />
 }
 
 export default function App() {
@@ -30,7 +43,7 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          <Route path="/" element={<Navigate to="/signin" replace />} />
+          <Route path="/" element={<RootRedirect />} />
           <Route path="/signin" element={<PublicRoute><SignInPage /></PublicRoute>} />
           <Route path="/signup" element={<PublicRoute><SignUpPage /></PublicRoute>} />
           <Route path="/verify-email" element={<PublicRoute><VerifyEmailPage /></PublicRoute>} />

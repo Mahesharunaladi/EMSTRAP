@@ -87,7 +87,7 @@ export function registerSocketHandlers(io) {
       }
     }
 
-    socket.on('join_room', async ({ role } = {}) => {
+    socket.on('join_room', async ({ role, userId, emergencyId } = {}) => {
       let room = null
       if (['GOVT_DRIVER', 'PRIVATE_DRIVER'].includes(role)) {
         if (driver) {
@@ -97,8 +97,10 @@ export function registerSocketHandlers(io) {
         if (!driverRoomWatcher && driver) driverRoomWatcher = setInterval(syncDriverRoom, 30_000)
       }
       if (role === 'POLICE') room = ROOMS.police
+      if (userId) socket.join(userRoom(String(userId)))
+      if (emergencyId) socket.join(emergencyRoom(String(emergencyId)))
       if (room) socket.join(room)
-      socket.emit('room_joined', { room, success: Boolean(room) })
+      socket.emit('room_joined', { room, success: Boolean(room || userId || emergencyId) })
     })
 
     socket.on('driver_location_update', async ({ emergencyId, lat, lng, heading } = {}) => {

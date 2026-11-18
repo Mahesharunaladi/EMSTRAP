@@ -1,8 +1,10 @@
-import { Ambulance, Camera, CircleUserRound, Eye, LocateFixed, MapPin, Navigation, Radio, Siren, ShieldAlert, X } from 'lucide-react'
+import { Ambulance, Camera, CheckCircle2, CircleUserRound, Eye, LocateFixed, MapPin, Navigation, Phone, PhoneCall, Radio, Siren, ShieldAlert, ShieldCheck, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import DriverAppShell from './DriverAppShell'
+import DriverCameraModal from './DriverCameraModal'
+import { verifyDriverFaceMatch } from '../../utils/faceMatcher'
 import api from '../../services/api'
 import { acceptEmergency, joinDriverRoom, onUserLocationUpdated, sendDriverLocation } from '../../services/emergencySocket'
 
@@ -26,6 +28,8 @@ export default function DriverDashboard() {
   const [online, setOnline] = useState(true)
   const [locationStatus, setLocationStatus] = useState('Location sharing starts after accepting a request')
   const [modalImage, setModalImage] = useState(null)
+  const [biometricModalOpen, setBiometricModalOpen] = useState(false)
+  const [pendingAction, setPendingAction] = useState(null) // { type: 'EMERGENCY' } or { type: 'BOOKING', booking }
 
   const isGovtDriver = driver?.driverType === 'GOVERNMENT'
   const isPrivateDriver = driver?.driverType === 'PRIVATE'
@@ -224,7 +228,34 @@ export default function DriverDashboard() {
     return () => { active = false; if (watchId) navigator.geolocation.clearWatch(watchId) }
   }, [driver?.id, isPrivateDriver, activeBooking?._id])
 
-  const accept = async () => {
+  // Handle Pre-Ride Biometric Verification
+  const startBiometricVerification = (action) => {
+    setPendingAction(action)
+    setBiometricModalOpen(true)
+  }
+
+  const onBiometricSelfieCaptured = async (selfieDataUri) => {
+    setBiometricModalOpen(false)
+    const registeredSelfie = driver?.selfie?.url || driver?.selfie
+    toast.loading('Analyzing facial & eye structure against registration...', { id: 'face-verify' })
+    
+    const result = await verifyDriverFaceMatch(registeredSelfie, selfieDataUri)
+    if (!result.match) {
+      toast.error(result.reason || 'Biometric mismatch: Driver face does not match registration record.', { id: 'face-verify', duration: 5000 })
+      return
+    }
+
+    toast.success(`Identity Verified (${result.confidence}% match). Authorizing dispatch response...`, { id: 'face-verify' })
+    
+    if (pendingAction?.type === 'EMERGENCY') {
+      await executeAcceptEmergency()
+    } else if (pendingAction?.type === 'BOOKING') {
+      await executeAcceptBooking(pendingAction.booking)
+    }
+    setPendingAction(null)
+  }
+
+  const executeAcceptEmergency = async () => {
     const emergencyId = emergency?._id || emergency?.emergencyId
     if (!emergencyId || !driver?.id) return
     try {
@@ -237,6 +268,11 @@ export default function DriverDashboard() {
     } catch (err) {
       toast.error(err.message || 'Unable to accept emergency')
     }
+  }
+
+  const accept = async () => {
+    // Prompt biometric selfie check before accepting and starting the emergency ride
+    startBiometricVerification({ type: 'EMERGENCY' })
   }
 
   const updateEmergencyStatus = async status => {
@@ -256,7 +292,7 @@ export default function DriverDashboard() {
     }
   }
 
-  async function acceptBooking(booking) {
+  const executeAcceptBooking = async (booking) => {
     try {
       const { data } = await api.post(`/driver/bookings/${booking._id}/accept`)
       setBookings(current => [data.data.booking, ...current.filter(item => String(item._id) !== String(booking._id))])
@@ -265,6 +301,11 @@ export default function DriverDashboard() {
       }
       toast.success('Booking accepted. Directions to pickup launched.')
     } catch (error) { toast.error(error.response?.data?.message || 'This booking is no longer available') }
+  }
+
+  async function acceptBooking(booking) {
+    // Prompt biometric selfie check before starting/accepting private ride
+    startBiometricVerification({ type: 'BOOKING', booking })
   }
 
   async function updateBookingStatus(booking, status) {
@@ -354,10 +395,26 @@ export default function DriverDashboard() {
                     <MapPin size={14} className="text-red-600 shrink-0" />
                     Pickup: {emergency.location?.lat?.toFixed(5)}, {emergency.location?.lng?.toFixed(5)}
                   </p>
-                  {emergency.userId?.name && (
-                    <p className="mt-0.5 text-xs text-slate-700">
-                      Victim: <b>{emergency.userId.name}</b>{emergency.userId.phone ? ` · ${emergency.userId.phone}` : ''}
-                    </p>
+                  {emergency.userId && (
+                    <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-red-200 bg-red-50/70 p-3 shadow-sm">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs font-bold text-slate-900">{emergency.userId.name || 'Caller / Patient'}</p>
+                          <span className="rounded-full bg-red-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-red-800">Victim</span>
+                        </div>
+                        <p className="text-[11px] text-slate-600 mt-0.5 font-medium">
+                          {emergency.userId.phone ? `Phone: ${emergency.userId.phone}` : 'Contact number unavailable'}
+                        </p>
+                      </div>
+                      {emergency.userId.phone && (
+                        <a
+                          href={`tel:${emergency.userId.phone}`}
+                          className="flex shrink-0 items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white shadow-md shadow-emerald-600/30 hover:bg-emerald-700 transition"
+                        >
+                          <PhoneCall size={14} /> Call Patient
+                        </a>
+                      )}
+                    </div>
                   )}
                   {emergency.incidentDetails && (
                     <p className="mt-1.5 text-xs text-slate-700 bg-red-50 rounded-lg p-2 border border-red-100">
@@ -485,11 +542,14 @@ export default function DriverDashboard() {
           bookings.map(booking => (
             <article key={booking._id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex items-start justify-between gap-3">
-                <div>
+                <div className="min-w-0 flex-1">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-red-600">
                     {booking.tier} transport · {booking.status}
                   </p>
-                  <h3 className="mt-1 text-sm font-bold">{booking.customerName || 'Ambulance booking'}</h3>
+                  <h3 className="mt-1 text-sm font-bold text-slate-900">{booking.customerName || 'Ambulance Booking'}</h3>
+                  {booking.customerPhone && (
+                    <p className="mt-0.5 text-xs text-slate-600">Patient Phone: <b>{booking.customerPhone}</b></p>
+                  )}
                 </div>
                 <Ambulance className="shrink-0 text-slate-500" size={20} />
               </div>
@@ -519,8 +579,22 @@ export default function DriverDashboard() {
                       />
                     </div>
                   )}
+                  {booking.customerPhone && (
+                    <div className="flex items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50/70 p-3">
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-slate-900">{booking.customerName || 'Patient'}</p>
+                        <p className="text-[11px] text-slate-600 font-medium">Phone: {booking.customerPhone}</p>
+                      </div>
+                      <a
+                        href={`tel:${booking.customerPhone}`}
+                        className="flex shrink-0 items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-bold text-white shadow hover:bg-emerald-700 transition"
+                      >
+                        <PhoneCall size={14} /> Call Patient
+                      </a>
+                    </div>
+                  )}
                   {coords(booking.pickupLocation) && (
-                    <a href={mapsUrl(booking.pickupLocation)} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 rounded-xl bg-emerald-700 py-3 text-sm font-bold text-white">
+                    <a href={mapsUrl(booking.pickupLocation)} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 rounded-xl bg-emerald-700 py-3 text-sm font-bold text-white shadow-md">
                       <Navigation size={16} /> Live Turn-by-Turn GPS Directions
                     </a>
                   )}
@@ -556,6 +630,20 @@ export default function DriverDashboard() {
     <Link to="/driver/profile" className="mt-5 flex items-center justify-center gap-2 text-sm font-bold text-slate-600">
       <CircleUserRound size={17} /> View driver profile
     </Link>
+
+    {/* Pre-Ride Biometric Verification Camera Modal */}
+    {biometricModalOpen && (
+      <DriverCameraModal
+        title="Driver Identity Verification"
+        subtitle="Pre-Ride Biometric Check"
+        instructions="Hold your phone at eye level. Ensure your face and eyes are clearly visible in the guide frame to verify against your registration photo before starting the ride."
+        onClose={() => {
+          setBiometricModalOpen(false)
+          setPendingAction(null)
+        }}
+        onCaptured={onBiometricSelfieCaptured}
+      />
+    )}
 
     {/* Lightbox / Modal for enlarged Incident Image */}
     {modalImage && (

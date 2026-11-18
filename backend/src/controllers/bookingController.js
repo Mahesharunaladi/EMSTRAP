@@ -139,7 +139,7 @@ export async function acceptDriverBooking(req, res, next) {
     ).lean()
     if (!booking) return res.status(409).json({ success: false, message: 'This booking was already accepted or is no longer available', data: null })
     const io = req.app.get('io')
-    const assignment = { booking: publicBooking(booking), driver: { id: driver._id, name: driver.name, phone: driver.phone, driverType: driver.driverType } }
+    const assignment = { booking: { ...publicBooking(booking), customerName: booking.customerName, customerPhone: booking.customerPhone }, driver: { id: driver._id, name: driver.name, phone: driver.phone, driverType: driver.driverType } }
     if (io) {
       io.to('private_drivers_channel').emit('BOOKING_ASSIGNED', { booking: publicBooking(booking), driver: { id: driver._id } })
       if (booking.authUserId) {

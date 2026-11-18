@@ -6,7 +6,7 @@ import MobileAppShell from '../../components/MobileAppShell'
 import BookedAmbulanceCard from '../../components/BookedAmbulanceCard'
 import CameraCaptureModal from '../../components/CameraCaptureModal'
 import LocationSearchModal from '../../components/LocationSearchModal'
-import { dispatchEmergency, onDriverLocationUpdated, onEmergencyCreated, sendUserLocation } from '../../services/emergencySocket'
+import { dispatchEmergency, joinUserRoom, onDriverAssigned, onDriverLocationUpdated, onEmergencyCreated, sendUserLocation } from '../../services/emergencySocket'
 import { useAuth } from '../../context/AuthContext'
 import useUserBookings from '../../hooks/useUserBookings'
 
@@ -24,6 +24,7 @@ export default function MobileHomePage() {
   const [searchOpen, setSearchOpen] = useState(false)
   const [selectedAddress, setSelectedAddress] = useState(() => user?.currentLocation?.address || '')
   const [emergency, setEmergency] = useState(null)
+  const [driver, setDriver] = useState(null)
   const [driverLocation, setDriverLocation] = useState(null)
   const [driverPhoto, setDriverPhoto] = useState(null)
   const activeBooking = bookings.find(booking => activeStatuses.has(booking.status))
@@ -39,12 +40,34 @@ export default function MobileHomePage() {
   }, [currentLocation?.address, user?.currentLocation?.address, currentLocation?.lat, currentLocation?.lng])
 
   useEffect(() => {
+    if (user?.id) {
+      const unsub = joinUserRoom(user.id, emergency?._id || emergency?.emergencyId)
+      return unsub
+    }
+  }, [user?.id, emergency?._id, emergency?.emergencyId])
+
+  useEffect(() => {
     const removeCreated = onEmergencyCreated(event => setEmergency(event.data))
+    const removeAssigned = onDriverAssigned(assignment => {
+      setEmergency(current => ({
+        ...(current || {}),
+        status: assignment.status || 'ACCEPTED',
+        assignedDriverId: assignment.driver?.id,
+        driver: assignment.driver,
+      }))
+      if (assignment.driver) {
+        setDriver(assignment.driver)
+        if (assignment.driver.selfie?.url || assignment.driver.photo) {
+          setDriverPhoto(assignment.driver.selfie?.url || assignment.driver.photo)
+        }
+      }
+      toast.success('Ambulance driver has accepted your emergency request!')
+    })
     const removeLocation = onDriverLocationUpdated(payload => {
       setDriverLocation(payload.location)
       if (payload.driverPhoto) setDriverPhoto(payload.driverPhoto)
     })
-    return () => { removeCreated(); removeLocation() }
+    return () => { removeCreated(); removeAssigned(); removeLocation() }
   }, [])
 
   useEffect(() => {
@@ -77,7 +100,22 @@ export default function MobileHomePage() {
     </section>}
 
     {emergency && <section className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4">
-      <div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-red-600 text-white"><Siren size={19} /></span><div><p className="text-xs font-bold uppercase tracking-wider text-red-700">Emergency active</p><p className="text-sm font-bold">Help is on the way</p></div></div>
+      <div className="flex items-center gap-3">
+        <span className="grid h-10 w-10 place-items-center rounded-xl bg-red-600 text-white shadow-md shadow-red-200">
+          <Siren size={19} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <p className="text-xs font-bold uppercase tracking-wider text-red-700">Emergency active</p>
+            <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${emergency.status === 'ACCEPTED' || emergency.status === 'ARRIVED' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+              {emergency.status === 'ACCEPTED' ? 'Driver accepted' : emergency.status === 'ARRIVED' ? 'Arrived on scene' : 'Searching for responders'}
+            </span>
+          </div>
+          <p className="text-sm font-bold">
+            {emergency.status === 'ACCEPTED' ? 'Ambulance responding to your incident' : emergency.status === 'ARRIVED' ? 'Ambulance arrived at your location' : 'Help is on the way'}
+          </p>
+        </div>
+      </div>
       
       {/* Realtime OpenStreetMap embed when driver location is live */}
       {driverLocation?.lat && driverLocation?.lng ? (
@@ -90,7 +128,7 @@ export default function MobileHomePage() {
           />
         </div>
       ) : (
-        <div className="driver-map mt-4 h-44"><div className="driver-map-grid" /><span className="driver-marker driver-marker-user"><MapPin size={16} fill="currentColor" /></span><div className="absolute bottom-2 left-2 rounded-lg bg-white/90 px-2 py-1 text-[10px] font-bold">Waiting for responder's GPS coordinates...</div></div>
+        <div className="driver-map mt-4 h-44"><div className="driver-map-grid" /><span className="driver-marker driver-marker-user"><MapPin size={16} fill="currentColor" /></span><div className="absolute bottom-2 left-2 rounded-lg bg-white/90 px-2 py-1 text-[10px] font-bold">{emergency.status === 'ACCEPTED' ? 'Driver accepted! Connecting GPS feed...' : "Waiting for responder's GPS coordinates..."}</div></div>
       )}
 
       {driverLocation && (
@@ -103,14 +141,41 @@ export default function MobileHomePage() {
             href={`https://www.google.com/maps?q=${driverLocation.lat},${driverLocation.lng}`}
             target="_blank"
             rel="noreferrer"
-            className="rounded-lg bg-emerald-700 px-2.5 py-1 text-[11px] font-bold text-white shadow"
+            className="rounded-lg bg-emerald-700 px-2.5 py-1 text-[11px] font-bold text-white shadow hover:bg-emerald-800"
           >
             Google Maps
           </a>
         </div>
       )}
 
-      {driverPhoto && <div className="mt-3 flex items-center gap-3"><img src={driverPhoto} alt="Assigned driver" className="h-10 w-10 rounded-full object-cover" /><div><p className="text-xs font-bold">Your assigned driver</p><p className="text-[11px] text-slate-600">Verified driver photo</p></div></div>}
+      {(driverPhoto || driver?.name) && (
+        <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-red-200 bg-white p-3.5 shadow-sm">
+          <div className="flex items-center gap-3 min-w-0">
+            {driverPhoto ? (
+              <img src={driverPhoto} alt="Assigned driver" className="h-12 w-12 rounded-full object-cover border-2 border-red-200 shadow-sm" />
+            ) : (
+              <span className="grid h-12 w-12 place-items-center rounded-full bg-red-600 text-white shadow-sm">
+                <Ambulance size={22} />
+              </span>
+            )}
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-bold text-slate-900 truncate">{driver?.name || 'Assigned Driver'}</p>
+                <span className="rounded-full bg-red-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-red-800">Govt Response</span>
+              </div>
+              <p className="text-[11px] text-slate-600 mt-0.5 font-medium">{driver?.phone ? `Phone: ${driver.phone}` : 'Government Emergency Unit'}</p>
+            </div>
+          </div>
+          {driver?.phone && (
+            <a
+              href={`tel:${driver.phone}`}
+              className="flex shrink-0 items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2.5 text-xs font-bold text-white shadow-md shadow-emerald-600/30 hover:bg-emerald-700 transition"
+            >
+              <PhoneCall size={14} /> Call Driver
+            </a>
+          )}
+        </div>
+      )}
     </section>}
 
     <section className="mt-7">

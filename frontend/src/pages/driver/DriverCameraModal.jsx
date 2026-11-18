@@ -25,7 +25,7 @@ function fileToJpeg(file) {
   })
 }
 
-export default function DriverCameraModal({ onClose, onCaptured }) {
+export default function DriverCameraModal({ onClose, onCaptured, title = 'Take your selfie', subtitle = 'Identity check', instructions = 'Center your face inside the oval' }) {
   const videoRef = useRef(null)
   const streamRef = useRef(null)
   const fileRef = useRef(null)
@@ -93,8 +93,8 @@ export default function DriverCameraModal({ onClose, onCaptured }) {
     <section className="w-full max-w-[420px] overflow-hidden rounded-3xl bg-slate-900 text-white">
       <div className="flex items-center justify-between p-4">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[.18em] text-red-300">Identity check</p>
-          <h2 className="mt-1 font-display text-lg font-bold">Take your selfie</h2>
+          <p className="text-[10px] font-bold uppercase tracking-[.18em] text-red-300">{subtitle}</p>
+          <h2 className="mt-1 font-display text-lg font-bold">{title}</h2>
         </div>
         <button onClick={onClose} aria-label="Close selfie camera" className="grid h-9 w-9 place-items-center rounded-full border border-slate-700 bg-slate-800 text-white"><X size={17} /></button>
       </div>
@@ -103,7 +103,7 @@ export default function DriverCameraModal({ onClose, onCaptured }) {
         <img src={preview || ''} alt="Selfie preview" className={`h-full w-full object-cover ${preview ? '' : 'hidden'}`} />
         {!preview && !ready && <div className="absolute inset-0 grid place-items-center px-8 text-center text-sm text-white/80">Tap the camera button to open your phone camera.</div>}
         {(!preview && ready || preview) && <div className="pointer-events-none absolute inset-10 rounded-[45%] border-2 border-dashed border-white/80" />}
-        {ready && !preview && <p className="absolute bottom-3 left-0 right-0 text-center text-xs text-white/80">Center your face inside the oval</p>}
+        {ready && !preview && <p className="absolute bottom-3 left-0 right-0 text-center text-xs text-white/80">{instructions}</p>}
       </div>
       <div className="flex items-center justify-center gap-5 p-5">
         {preview ? <>

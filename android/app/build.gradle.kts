@@ -41,6 +41,20 @@ android {
             manifestPlaceholders["appName"] = "EmSTraP User"
             buildConfigField("String", "PORTAL_START_URL", "\"https://emstrap-user.onrender.com\"")
         }
+        create("driver") {
+            dimension = "portal"
+            applicationId = "com.example.emstrap.driver"
+            versionName = "1.0-driver"
+            manifestPlaceholders["appName"] = "EmSTraP Driver"
+            buildConfigField("String", "PORTAL_START_URL", "\"https://emstrap-driver-y1x2.onrender.com\"")
+        }
+        create("police") {
+            dimension = "portal"
+            applicationId = "com.example.emstrap.police"
+            versionName = "1.0-police"
+            manifestPlaceholders["appName"] = "EmSTraP Police"
+            buildConfigField("String", "PORTAL_START_URL", "\"https://emstrap-police.onrender.com\"")
+        }
     }
 
     buildFeatures {
@@ -51,6 +65,10 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
     }
 }
 

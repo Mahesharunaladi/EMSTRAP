@@ -27,6 +27,15 @@ function fileToDataUrl(file) {
 }
 export default function DriverPortal() {
   const navigate = useNavigate(); const [mode, setMode] = useState('register'); const [stage, setStage] = useState('account'); const [pendingEmail, setPendingEmail] = useState(''); const [code, setCode] = useState(''); const [cameraOpen, setCameraOpen] = useState(false); const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', driverType: 'GOVERNMENT', governmentId: '' }); const [docs, setDocs] = useState({ selfie: null, license: null }); const [loading, setLoading] = useState(false)
+
+  // Auto-login driver if credentials already exist on device
+  useState(() => {
+    const token = localStorage.getItem('emstrap_driver_token')
+    if (token) {
+      sessionStorage.setItem('emstrap_driver_session', 'true')
+      navigate('/driver/dashboard', { replace: true })
+    }
+  })
   const openDocuments = () => { setStage('documents'); setCameraOpen(true) }
   async function submitAccount(event) { event.preventDefault(); setLoading(true); try { const endpoint = mode === 'login' ? '/driver/login' : '/driver/register'; const { data } = await api.post(endpoint, mode === 'login' ? { email: form.email, password: form.password } : form); if (mode === 'login') { if (data.data?.token) localStorage.setItem('emstrap_driver_token', data.data.token); sessionStorage.setItem('emstrap_driver_session', 'true'); data.data.driver.status === 'PENDING_DOCUMENTS' ? openDocuments() : navigate('/driver/dashboard') } else { if (data.data?.otpPreview) setCode(data.data.otpPreview); setPendingEmail(data.data.email); setStage('verify'); toast.success('Driver verification code sent') } } catch (error) { if (error.response?.data?.data?.requiresVerification) { setPendingEmail(error.response.data.data.email); setStage('verify') } else toast.error(error.response?.data?.message || 'Unable to continue') } finally { setLoading(false) } }
   async function verifyDriver(event) { event.preventDefault(); if (code.length !== 6) return toast.error('Enter the six-digit code from your email'); setLoading(true); try { const { data } = await api.post('/driver/verify-email', { email: pendingEmail, code }); if (data.data?.token) localStorage.setItem('emstrap_driver_token', data.data.token); sessionStorage.setItem('emstrap_driver_session', 'true'); openDocuments(); toast.success('Driver email verified') } catch (error) { toast.error(error.response?.data?.message || 'Unable to verify driver email') } finally { setLoading(false) } }

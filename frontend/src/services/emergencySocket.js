@@ -32,8 +32,10 @@ function connect() {
 export async function dispatchEmergency(payload) {
   try {
     const { data } = await api.post('/emergency/dispatch', payload)
-    if (socket.connected && payload.userId) {
-      socket.emit('join_room', { userId: payload.userId })
+    connect()
+    if (payload.userId) socket.emit('join_room', { userId: payload.userId })
+    if (data.data?.emergencyId || data.data?._id) {
+      socket.emit('join_room', { emergencyId: data.data.emergencyId || data.data._id })
     }
     return data.data
   } catch (httpError) {
@@ -43,6 +45,9 @@ export async function dispatchEmergency(payload) {
       socket.timeout(10000).emit('emergency:dispatch', { ...payload, targets: ['government-drivers', 'police-command'] }, (error, response) => {
         if (error) return reject(new Error('Emergency dispatch timed out. Check your connection and try again.'))
         if (!response?.success) return reject(new Error(response?.message || 'Emergency dispatch failed. Please try again.'))
+        if (response.data?.emergencyId || response.data?._id) {
+          socket.emit('join_room', { emergencyId: response.data.emergencyId || response.data._id })
+        }
         resolve(response.data)
       })
     })
@@ -75,6 +80,22 @@ export function joinDriverRoom(driverId, onEmergency, driverType = 'GOVERNMENT',
 }
 export function sendDriverLocation(payload) { connect(); socket.emit('driver_location_update', { emergencyId: payload.emergencyId, lat: payload.lat, lng: payload.lng, heading: payload.heading }) }
 export function sendUserLocation(payload) { connect(); socket.emit('user_location_update', payload) }
+export function joinUserRoom(userId, emergencyId) {
+  connect()
+  const emitJoin = () => {
+    socket.emit('join_room', { userId, emergencyId })
+  }
+  emitJoin()
+  socket.on('connect', emitJoin)
+  return () => socket.off('connect', emitJoin)
+}
+
+export function onDriverAssigned(callback) {
+  connect()
+  socket.on('DRIVER_ASSIGNED', callback)
+  return () => socket.off('DRIVER_ASSIGNED', callback)
+}
+
 export function onEmergencyCreated(callback) { connect(); socket.on('emergency:created', callback); return () => socket.off('emergency:created', callback) }
 export function onDriverLocationUpdated(callback) { connect(); socket.on('DRIVER_LOCATION_UPDATED', callback); return () => socket.off('DRIVER_LOCATION_UPDATED', callback) }
 export function onBookingDriverLocationUpdated(callback) { connect(); socket.on('BOOKING_DRIVER_LOCATION_UPDATED', callback); return () => socket.off('BOOKING_DRIVER_LOCATION_UPDATED', callback) }

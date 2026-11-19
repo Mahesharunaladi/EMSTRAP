@@ -17,6 +17,9 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.WebResourceError
+import android.webkit.ConsoleMessage
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
@@ -53,6 +56,9 @@ class MainActivity : ComponentActivity() {
                 ViewGroup.LayoutParams.MATCH_PARENT
             )
 
+            setBackgroundColor(android.graphics.Color.rgb(247, 247, 245))
+            WebView.setWebContentsDebuggingEnabled(true)
+
             settings.apply {
                 javaScriptEnabled = true
                 domStorageEnabled = true
@@ -66,6 +72,7 @@ class MainActivity : ComponentActivity() {
                 loadWithOverviewMode = true
                 mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                 setSupportMultipleWindows(true)
+                userAgentString = settings.userAgentString + " EmSTraP-App"
             }
 
             val cookieManager = CookieManager.getInstance()
@@ -73,6 +80,15 @@ class MainActivity : ComponentActivity() {
             cookieManager.setAcceptThirdPartyCookies(this, true)
 
             webViewClient = object : WebViewClient() {
+                override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
+                    super.onReceivedError(view, request, error)
+                    Log.e("EmstrapWebView", "Load error: ${error?.description} for ${request?.url}")
+                }
+
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    super.onPageFinished(view, url)
+                    Log.d("EmstrapWebView", "Page finished loading: $url")
+                }
                 override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                     val uri = request?.url ?: return false
                     val url = uri.toString()
@@ -116,6 +132,10 @@ class MainActivity : ComponentActivity() {
             }
 
             webChromeClient = object : WebChromeClient() {
+                override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
+                    Log.d("EmstrapJS", "${consoleMessage?.message()} -- From line ${consoleMessage?.lineNumber()} of ${consoleMessage?.sourceId()}")
+                    return true
+                }
                 override fun onCreateWindow(
                     view: WebView?,
                     isDialog: Boolean,

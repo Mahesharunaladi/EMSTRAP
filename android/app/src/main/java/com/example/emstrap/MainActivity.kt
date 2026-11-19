@@ -89,6 +89,11 @@ class MainActivity : ComponentActivity() {
                     super.onPageFinished(view, url)
                     Log.d("EmstrapWebView", "Page finished loading: $url")
                 }
+
+                override fun onRenderProcessGone(view: WebView?, detail: android.webkit.RenderProcessGoneDetail?): Boolean {
+                    Log.e("EmstrapWebView", "Render process gone. Did crash: ${detail?.didCrash()}")
+                    return false
+                }
                 override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                     val uri = request?.url ?: return false
                     val url = uri.toString()

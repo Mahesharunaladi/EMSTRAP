@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider, useAuth } from './context/AuthContext'
@@ -19,16 +20,44 @@ import PoliceDashboard from './pages/police/PoliceDashboard'
 
 function RootRedirect() {
   const { user, loading } = useAuth()
-  if (loading) {
-    return <div className="grid min-h-screen place-items-center bg-[#f7f7f5] text-sm font-semibold text-slate-500">Loading your secure session…</div>
+  const [timedOut, setTimedOut] = useState(false)
+
+  useEffect(() => {
+    const t = setTimeout(() => setTimedOut(true), 3500)
+    return () => clearTimeout(t)
+  }, [])
+
+  if (loading && !timedOut) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-[#f7f7f5] text-sm font-semibold text-slate-500">
+        <div className="flex flex-col items-center gap-3">
+          <img src="/emstrap-logo.png" alt="EmSTraP" className="h-12 w-auto animate-pulse" />
+          <p>Connecting to secure network…</p>
+        </div>
+      </div>
+    )
   }
   return user ? <Navigate to="/app" replace /> : <Navigate to="/signin" replace />
 }
 
 function PublicRoute({ children }) {
   const { user, loading } = useAuth()
-  if (loading) {
-    return <div className="grid min-h-screen place-items-center bg-[#f7f7f5] text-sm font-semibold text-slate-500">Loading your secure session…</div>
+  const [timedOut, setTimedOut] = useState(false)
+
+  useEffect(() => {
+    const t = setTimeout(() => setTimedOut(true), 3500)
+    return () => clearTimeout(t)
+  }, [])
+
+  if (loading && !timedOut) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-[#f7f7f5] text-sm font-semibold text-slate-500">
+        <div className="flex flex-col items-center gap-3">
+          <img src="/emstrap-logo.png" alt="EmSTraP" className="h-12 w-auto animate-pulse" />
+          <p>Connecting to secure network…</p>
+        </div>
+      </div>
+    )
   }
   return user ? <Navigate to="/app" replace /> : children
 }

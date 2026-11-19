@@ -7,7 +7,7 @@ import { updateCurrentLocation } from './locationController.js'
 
 const OTP_TTL_MS = 10 * 60 * 1000
 const COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000
-const publicUser = user => ({ id: user._id, name: user.name, email: user.email, role: user.role.toLowerCase(), verified: user.isEmailVerified, currentLocation: user.currentLocation || null })
+const publicUser = user => ({ id: user._id, name: user.name, email: user.email, phone: user.phone || '', role: user.role.toLowerCase(), verified: user.isEmailVerified, currentLocation: user.currentLocation || null })
 const hashCode = value => crypto.createHmac('sha256', process.env.JWT_SECRET).update(value).digest('hex')
 const createCode = () => String(crypto.randomInt(100000, 1000000))
 
@@ -20,13 +20,18 @@ function issueSession(res, user) {
 
 export async function register(req, res, next) {
   try {
-    const { name, email, password } = req.body
+    const { name, email, password, phone } = req.body
     const normalizedEmail = email?.trim().toLowerCase()
-    if (!name?.trim() || name.trim().length > 120 || !normalizedEmail || normalizedEmail.length > 254 || !password || password.length < 8 || password.length > 128) return res.status(400).json({ success: false, message: 'Name, valid email, and an 8- to 128-character password are required', data: null })
+    const cleanPhone = typeof phone === 'string' ? phone.trim().replace(/[^0-9+]/g, '') : ''
+
+    if (!cleanPhone || cleanPhone.length < 7 || cleanPhone.length > 16) {
+      return res.status(400).json({ success: false, message: 'A valid phone number is mandatory during registration and cannot be added later.', data: null })
+    }
+    if (!name?.trim() || name.trim().length > 120 || !normalizedEmail || normalizedEmail.length > 254 || !password || password.length < 8 || password.length > 128) return res.status(400).json({ success: false, message: 'Name, valid email, phone number, and an 8- to 128-character password are required', data: null })
     let user = await User.findOne({ email: normalizedEmail }).select('+passwordHash +verificationCodeHash +verificationCodeExpiresAt +sessionVersion')
     if (user?.isEmailVerified) return res.status(409).json({ success: false, message: 'An account with this email already exists', data: null })
     const code = createCode()
-    const fields = { name: name.trim(), email: normalizedEmail, passwordHash: await bcrypt.hash(password, 12), isEmailVerified: false, verificationCodeHash: hashCode(code), verificationCodeExpiresAt: new Date(Date.now() + OTP_TTL_MS), verificationAttempts: 0 }
+    const fields = { name: name.trim(), email: normalizedEmail, phone: cleanPhone, passwordHash: await bcrypt.hash(password, 12), isEmailVerified: false, verificationCodeHash: hashCode(code), verificationCodeExpiresAt: new Date(Date.now() + OTP_TTL_MS), verificationAttempts: 0 }
     user = user ? Object.assign(user, fields) : new User(fields)
     await user.save()
     sendVerificationCode({ email: normalizedEmail, name: user.name, code }).catch(e => console.error('[email error]', e.message))
@@ -74,7 +79,10 @@ export async function updateProfile(req, res, next) {
   try {
     const updates = {}
     if (typeof req.body.name === 'string' && req.body.name.trim()) updates.name = req.body.name.trim()
-    if (typeof req.body.phone === 'string') updates.phone = req.body.phone.trim()
+    // User cannot add or change phone number later - must be done at registration only
+    if (typeof req.body.phone === 'string' && req.body.phone.trim() && req.body.phone.trim() !== (req.user.phone || '')) {
+      return res.status(403).json({ success: false, message: 'Phone number cannot be added or changed after registration.', data: null })
+    }
     const user = await User.findByIdAndUpdate(req.user._id, { $set: updates }, { returnDocument: 'after', runValidators: true }).lean()
     res.json({ success: true, message: 'Profile updated', data: { user: publicUser(user) } })
   } catch (error) { next(error) }

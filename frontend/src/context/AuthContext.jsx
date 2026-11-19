@@ -177,9 +177,9 @@ export function AuthProvider({ children }) {
     return data
   }
 
-  const startSignUp = async (name, email, password) => {
-    const { data } = await api.post('/auth/register', { name, email, password })
-    const pending = { name, email, code: data.data?.otpPreview }
+  const startSignUp = async (name, email, password, phone) => {
+    const { data } = await api.post('/auth/register', { name, email, password, phone })
+    const pending = { name, email, phone, code: data.data?.otpPreview }
     sessionStorage.setItem('emstrap_pending_verification', JSON.stringify(pending))
     setPendingVerification(pending)
     return data

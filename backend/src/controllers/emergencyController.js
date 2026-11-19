@@ -79,3 +79,42 @@ export async function dispatchEmergencyHttp(req, res, next) {
     next(error)
   }
 }
+
+export async function getMyEmergencies(req, res, next) {
+  try {
+    const userId = req.user?._id
+    if (!userId) return res.json({ success: true, message: 'Your emergencies', data: { emergencies: [] } })
+    
+    const emergencies = await EmergencyRequest.find({ userId }).sort({ createdAt: -1 }).limit(30).lean()
+    
+    // Populate assigned driver details if assigned
+    const driverIds = emergencies.map(e => e.assignedDriverId).filter(Boolean)
+    const { GovtDriver } = await import('../config/db.js')
+    const drivers = await GovtDriver.find({ _id: { $in: driverIds } }).lean()
+    const driverMap = new Map(drivers.map(d => [d._id.toString(), d]))
+
+    const list = emergencies.map(e => {
+      const d = e.assignedDriverId ? driverMap.get(e.assignedDriverId.toString()) : null
+      return {
+        _id: e._id,
+        emergencyId: e._id,
+        status: e.status,
+        location: e.location,
+        incidentImage: e.incidentImage,
+        incidentDetails: e.incidentDetails,
+        createdAt: e.createdAt,
+        driver: d ? {
+          id: d._id,
+          name: d.name,
+          phone: d.phone,
+          selfie: d.selfie,
+          photo: d.selfie?.url || null
+        } : null
+      }
+    })
+
+    res.json({ success: true, message: 'Your emergencies', data: { emergencies: list } })
+  } catch (error) {
+    next(error)
+  }
+}

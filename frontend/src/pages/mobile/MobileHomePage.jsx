@@ -19,7 +19,7 @@ const activeStatuses = new Set(['PENDING', 'ACCEPTED', 'STARTED'])
 export default function MobileHomePage() {
   const navigate = useNavigate()
   const { user, currentLocation, updateLocation } = useAuth()
-  const { bookings } = useUserBookings()
+  const { bookings, emergencies } = useUserBookings()
   const [cameraOpen, setCameraOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [selectedAddress, setSelectedAddress] = useState(() => user?.currentLocation?.address || '')
@@ -28,6 +28,25 @@ export default function MobileHomePage() {
   const [driverLocation, setDriverLocation] = useState(null)
   const [driverPhoto, setDriverPhoto] = useState(null)
   const activeBooking = bookings.find(booking => activeStatuses.has(booking.status))
+
+  // Restore latest active emergency from backend if not yet set in state
+  useEffect(() => {
+    if (!emergency && emergencies && emergencies.length > 0) {
+      const activeEmerg = emergencies.find(e => ['PENDING', 'ACCEPTED', 'ARRIVED'].includes(e.status))
+      if (activeEmerg) {
+        setEmergency(activeEmerg)
+        if (activeEmerg.driver) {
+          setDriver(activeEmerg.driver)
+          if (activeEmerg.driver.photo || activeEmerg.driver.selfie?.url) {
+            setDriverPhoto(activeEmerg.driver.photo || activeEmerg.driver.selfie?.url)
+          }
+        }
+        if (activeEmerg.driverLocation) {
+          setDriverLocation(activeEmerg.driverLocation)
+        }
+      }
+    }
+  }, [emergencies, emergency])
 
   useEffect(() => {
     if (currentLocation?.address) {
@@ -64,8 +83,10 @@ export default function MobileHomePage() {
       toast.success('Ambulance driver has accepted your emergency request!')
     })
     const removeLocation = onDriverLocationUpdated(payload => {
-      setDriverLocation(payload.location)
-      if (payload.driverPhoto) setDriverPhoto(payload.driverPhoto)
+      if (payload?.location) {
+        setDriverLocation(payload.location)
+      }
+      if (payload?.driverPhoto) setDriverPhoto(payload.driverPhoto)
     })
     return () => { removeCreated(); removeAssigned(); removeLocation() }
   }, [])
@@ -75,9 +96,18 @@ export default function MobileHomePage() {
   }, [emergency?.emergencyId, currentLocation?.lat, currentLocation?.lng])
 
   const capture = async payload => {
-    await dispatchEmergency({ ...payload, userId: user?.id })
+    const data = await dispatchEmergency({ ...payload, userId: user?.id })
+    if (data) {
+      setEmergency(data)
+      if (data.driver) {
+        setDriver(data.driver)
+        if (data.driver.photo || data.driver.selfie?.url) {
+          setDriverPhoto(data.driver.photo || data.driver.selfie?.url)
+        }
+      }
+    }
     setCameraOpen(false)
-    toast.success('SOS sent. Nearby responders are being alerted.')
+    toast.success('SOS sent! Government ambulance and police alerted.')
   }
 
   return <MobileAppShell>

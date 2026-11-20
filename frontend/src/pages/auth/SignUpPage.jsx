@@ -17,10 +17,11 @@ export default function SignUpPage() {
     if (!form.name || !form.email || form.password.length < 8) {
       return toast.error('Use your name, email, and an 8-character password')
     }
-    const cleanPhone = form.phone.trim().replace(/[^0-9+]/g, '')
-    if (!cleanPhone || cleanPhone.length < 7 || cleanPhone.length > 16) {
-      return toast.error('A valid phone number is required and cannot be added later.')
+    const digits = form.phone.replace(/\D/g, '')
+    if (digits.length !== 10 || !/^[6-9]/.test(digits)) {
+      return toast.error('Please enter a valid 10-digit Indian phone number starting with 6-9')
     }
+    const cleanPhone = `+91${digits}`
     if (!form.consent) return toast.error('Please accept the terms to continue')
     
     setLoading(true)
@@ -77,23 +78,30 @@ export default function SignUpPage() {
           <div className="flex items-center justify-between">
             <span>Mobile Phone Number</span>
             <span className="flex items-center gap-1 text-[11px] font-bold text-red-600">
-              <Lock size={12} /> Permanent · Required
+              <Lock size={12} /> 10-Digit Mobile · Permanent
             </span>
           </div>
-          <div className="relative mt-2">
-            <Phone className="absolute left-3 top-3.5 text-slate-400" size={17} />
+          <div className="relative mt-2 flex items-center">
+            <div className="flex items-center gap-1.5 border border-r-0 border-slate-300 bg-slate-100 px-3 py-3 rounded-l-xl text-sm font-bold text-slate-700 select-none">
+              <Phone size={15} className="text-slate-500" />
+              <span>+91</span>
+            </div>
             <input
               type="tel"
               required
               autoComplete="tel"
+              maxLength={10}
               value={form.phone}
-              onChange={event => setForm({ ...form, phone: event.target.value })}
-              placeholder="+91 98765 43210"
-              className="w-full rounded-xl border border-slate-300 bg-white px-10 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-red-500 focus:ring-4 focus:ring-red-100"
+              onChange={event => {
+                const digits = event.target.value.replace(/\D/g, '').slice(0, 10);
+                setForm({ ...form, phone: digits });
+              }}
+              placeholder="9876543210"
+              className="w-full rounded-r-xl border border-slate-300 bg-white px-3 py-3 text-sm font-semibold outline-none transition placeholder:text-slate-400 focus:border-red-500 focus:ring-4 focus:ring-red-100"
             />
           </div>
           <p className="mt-1.5 text-[11px] leading-4 text-slate-500">
-            For emergency dispatch verification. This number is bound to your account and cannot be modified later.
+            Enter exactly 10 digits (starting with 6, 7, 8, or 9). This phone number is bound to your emergency record permanently.
           </p>
         </label>
 

@@ -27,7 +27,28 @@ export default function MobileHomePage() {
   const [driver, setDriver] = useState(null)
   const [driverLocation, setDriverLocation] = useState(null)
   const [driverPhoto, setDriverPhoto] = useState(null)
+  const [cooldownSeconds, setCooldownSeconds] = useState(0)
   const activeBooking = bookings.find(booking => activeStatuses.has(booking.status))
+
+  // 30-Minute Cooldown live countdown timer
+  useEffect(() => {
+    if (!emergency?.createdAt) {
+      setCooldownSeconds(0)
+      return
+    }
+    const calcRemaining = () => {
+      const elapsed = Date.now() - new Date(emergency.createdAt).getTime()
+      const remaining = Math.max(0, Math.ceil((30 * 60 * 1000 - elapsed) / 1000))
+      return remaining
+    }
+    setCooldownSeconds(calcRemaining())
+    const interval = setInterval(() => {
+      const rem = calcRemaining()
+      setCooldownSeconds(rem)
+      if (rem <= 0) clearInterval(interval)
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [emergency?.createdAt])
 
   // Restore latest active emergency from backend if not yet set in state
   useEffect(() => {
@@ -96,18 +117,30 @@ export default function MobileHomePage() {
   }, [emergency?.emergencyId, currentLocation?.lat, currentLocation?.lng])
 
   const capture = async payload => {
-    const data = await dispatchEmergency({ ...payload, userId: user?.id })
-    if (data) {
-      setEmergency(data)
-      if (data.driver) {
-        setDriver(data.driver)
-        if (data.driver.photo || data.driver.selfie?.url) {
-          setDriverPhoto(data.driver.photo || data.driver.selfie?.url)
+    try {
+      const data = await dispatchEmergency({ ...payload, userId: user?.id })
+      if (data) {
+        setEmergency(data)
+        if (data.driver) {
+          setDriver(data.driver)
+          if (data.driver.photo || data.driver.selfie?.url) {
+            setDriverPhoto(data.driver.photo || data.driver.selfie?.url)
+          }
         }
       }
+      setCameraOpen(false)
+      toast.success('SOS sent! Government ambulance and police alerted.')
+    } catch (err) {
+      setCameraOpen(false)
+      const resData = err.response?.data?.data
+      if (resData?.remainingSeconds) {
+        setCooldownSeconds(resData.remainingSeconds)
+        if (resData.existingEmergencyId) {
+          setEmergency(prev => ({ ...(prev || {}), _id: resData.existingEmergencyId, createdAt: resData.createdAt, status: resData.status || 'PENDING' }))
+        }
+      }
+      toast.error(err.response?.data?.message || err.message || 'Emergency dispatch failed')
     }
-    setCameraOpen(false)
-    toast.success('SOS sent! Government ambulance and police alerted.')
   }
 
   return <MobileAppShell>
@@ -141,6 +174,11 @@ export default function MobileHomePage() {
               {emergency.status === 'ACCEPTED' ? 'Driver accepted' : emergency.status === 'ARRIVED' ? 'Arrived on scene' : 'Searching for responders'}
             </span>
           </div>
+          {emergency.createdAt && (
+            <p className="text-[10px] text-slate-500 mt-0.5 font-medium">
+              Incident Reported: {new Date(emergency.createdAt).toLocaleTimeString()}
+            </p>
+          )}
           <p className="text-sm font-bold">
             {emergency.status === 'ACCEPTED' ? 'Ambulance responding to your incident' : emergency.status === 'ARRIVED' ? 'Ambulance arrived at your location' : 'Help is on the way'}
           </p>
@@ -206,11 +244,40 @@ export default function MobileHomePage() {
           )}
         </div>
       )}
+
+      {/* 30-Minute Cooldown & Evidence Upload Action */}
+      <div className="mt-3 flex items-center justify-between gap-2 rounded-xl bg-red-100/60 p-3 border border-red-200 text-xs">
+        <div>
+          <p className="font-bold text-red-900">
+            {cooldownSeconds > 0 ? (
+              <>Duplicate Alert Locked ({Math.floor(cooldownSeconds / 60)}:{String(cooldownSeconds % 60).padStart(2, '0')})</>
+            ) : (
+              'Incident Dispatched'
+            )}
+          </p>
+          <p className="text-[10px] text-red-700">Responders locked to this emergency</p>
+        </div>
+        <button
+          onClick={() => setCameraOpen(true)}
+          className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-bold text-white shadow hover:bg-red-700"
+        >
+          Add Evidence Photo
+        </button>
+      </div>
     </section>}
 
     <section className="mt-7">
       <div className="mb-3 flex items-center justify-between"><h2 className="font-display text-xl font-bold">Quick help</h2><Link to="/app/services" className="text-xs font-bold text-red-600">See all</Link></div>
-      <div className="grid grid-cols-2 gap-3">{quickActions.map(({ title, description, icon: Icon, className }, index) => <button key={title} onClick={() => index ? navigate('/booking') : setCameraOpen(true)} className={`mobile-action-card ${className} text-left`}>
+      <div className="grid grid-cols-2 gap-3">{quickActions.map(({ title, description, icon: Icon, className }, index) => <button key={title} onClick={() => {
+          if (index === 0) {
+            if (cooldownSeconds > 0) {
+              toast(`Active emergency is in progress (${Math.floor(cooldownSeconds / 60)}m ${cooldownSeconds % 60}s remaining). You can add scene evidence photos.`, { icon: '🚨' });
+            }
+            setCameraOpen(true);
+          } else {
+            navigate('/booking');
+          }
+        }} className={`mobile-action-card ${className} text-left`}>
         <span className="mb-8 grid h-11 w-11 place-items-center rounded-2xl bg-white/80"><Icon size={22} /></span><span className="block text-sm font-bold">{title}</span><span className="mt-1 block text-xs leading-4 opacity-70">{description}</span><ArrowRight className="absolute bottom-4 right-4" size={16} />
       </button>)}</div>
     </section>

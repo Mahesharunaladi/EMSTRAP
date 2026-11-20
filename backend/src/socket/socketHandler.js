@@ -43,6 +43,29 @@ function validLocation(location) {
 async function persistEmergency(payload, user) {
   const location = validLocation(payload.location || payload)
   if (!location) throw new Error('A valid location with lat and lng is required')
+
+  // 30-Minute Duplicate Emergency Cooldown
+  const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000)
+  let duplicateQuery = {
+    createdAt: { $gte: thirtyMinutesAgo },
+    status: { $in: ['PENDING', 'ACCEPTED', 'ARRIVED'] }
+  }
+  if (user?._id) {
+    duplicateQuery.userId = user._id
+  } else {
+    duplicateQuery['location.lat'] = { $gte: location.lat - 0.001, $lte: location.lat + 0.001 }
+    duplicateQuery['location.lng'] = { $gte: location.lng - 0.001, $lte: location.lng + 0.001 }
+  }
+
+  const recent = await EmergencyRequest.findOne(duplicateQuery).sort({ createdAt: -1 }).lean()
+  if (recent) {
+    const elapsedMs = Date.now() - new Date(recent.createdAt).getTime()
+    const remainingSeconds = Math.max(1, Math.ceil((30 * 60 * 1000 - elapsedMs) / 1000))
+    const error = new Error(`An active emergency is already reported. Duplicate alert locked for ${Math.ceil(remainingSeconds / 60)} more minutes.`)
+    error.statusCode = 429
+    error.data = { existingEmergencyId: recent._id, remainingSeconds, createdAt: recent.createdAt }
+    throw error
+  }
   const incidentDetails = typeof payload.incidentDetails === 'string' ? payload.incidentDetails.trim().slice(0, 1000) : undefined
   if (payload.image && (typeof payload.image !== 'string' || payload.image.length > 1_500_000 || !/^data:image\/(jpeg|png|webp);base64,/i.test(payload.image))) throw new Error('Incident evidence must be a JPEG, PNG, or WebP image under 1.5 MB')
   let incidentImage = null

@@ -20,6 +20,38 @@ export async function dispatchEmergencyHttp(req, res, next) {
       return res.status(400).json({ success: false, message: 'Valid coordinates (lat, lng) are required for emergency dispatch', data: null })
     }
 
+    // 30-Minute Duplicate Emergency SOS Cooldown & Timestamp Lock
+    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000)
+    let duplicateQuery = {
+      createdAt: { $gte: thirtyMinutesAgo },
+      status: { $in: ['PENDING', 'ACCEPTED', 'ARRIVED'] }
+    }
+    if (user?._id) {
+      duplicateQuery.userId = user._id
+    } else {
+      // Proximity check for anonymous SOS (within ~100m => 0.001 deg)
+      duplicateQuery['location.lat'] = { $gte: location.lat - 0.001, $lte: location.lat + 0.001 }
+      duplicateQuery['location.lng'] = { $gte: location.lng - 0.001, $lte: location.lng + 0.001 }
+    }
+
+    const recentEmergency = await EmergencyRequest.findOne(duplicateQuery).sort({ createdAt: -1 }).lean()
+    if (recentEmergency) {
+      const elapsedMs = Date.now() - new Date(recentEmergency.createdAt).getTime()
+      const remainingSeconds = Math.max(1, Math.ceil((30 * 60 * 1000 - elapsedMs) / 1000))
+      return res.status(429).json({
+        success: false,
+        message: `An active emergency dispatch is already underway. Duplicate alerts are locked for 30 minutes.`,
+        data: {
+          existingEmergencyId: recentEmergency._id,
+          createdAt: recentEmergency.createdAt,
+          incidentTimestamp: recentEmergency.createdAt,
+          remainingSeconds,
+          status: recentEmergency.status,
+          driver: recentEmergency.driver || null
+        }
+      })
+    }
+
     const incidentDetails = typeof req.body.incidentDetails === 'string'
       ? req.body.incidentDetails.trim().slice(0, 1000)
       : undefined

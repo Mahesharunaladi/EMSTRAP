@@ -6,13 +6,13 @@ import { sendVerificationCode } from '../services/emailService.js'
 import { updateCurrentLocation } from './locationController.js'
 
 const OTP_TTL_MS = 10 * 60 * 1000
-const COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000
+const COOKIE_MAX_AGE = 30 * 24 * 60 * 60 * 1000
 const publicUser = user => ({ id: user._id, name: user.name, email: user.email, phone: user.phone || '', role: user.role.toLowerCase(), verified: user.isEmailVerified, currentLocation: user.currentLocation || null })
 const hashCode = value => crypto.createHmac('sha256', process.env.JWT_SECRET).update(value).digest('hex')
 const createCode = () => String(crypto.randomInt(100000, 1000000))
 
 function issueSession(res, user) {
-  const token = jwt.sign({ sub: user._id.toString(), role: user.role, ver: user.sessionVersion || 0 }, process.env.JWT_SECRET, { expiresIn: '7d' })
+  const token = jwt.sign({ sub: user._id.toString(), role: user.role, ver: user.sessionVersion || 0 }, process.env.JWT_SECRET, { expiresIn: '30d' })
   const isProd = process.env.NODE_ENV === 'production'
   res.cookie('token', token, { httpOnly: true, secure: isProd, sameSite: isProd ? 'none' : 'lax', maxAge: COOKIE_MAX_AGE, path: '/' })
   return token
@@ -22,11 +22,15 @@ export async function register(req, res, next) {
   try {
     const { name, email, password, phone } = req.body
     const normalizedEmail = email?.trim().toLowerCase()
-    const cleanPhone = typeof phone === 'string' ? phone.trim().replace(/[^0-9+]/g, '') : ''
-
-    if (!cleanPhone || cleanPhone.length < 7 || cleanPhone.length > 16) {
-      return res.status(400).json({ success: false, message: 'A valid phone number is mandatory during registration and cannot be added later.', data: null })
+    let rawPhone = typeof phone === 'string' ? phone.trim() : ''
+    let digits = rawPhone.replace(/\D/g, '')
+    if (digits.startsWith('91') && digits.length === 12) {
+      digits = digits.slice(2)
     }
+    if (!/^[6-9]\d{9}$/.test(digits)) {
+      return res.status(400).json({ success: false, message: 'A valid 10-digit Indian phone number (+91) starting with 6-9 is required.', data: null })
+    }
+    const cleanPhone = `+91${digits}`
     if (!name?.trim() || name.trim().length > 120 || !normalizedEmail || normalizedEmail.length > 254 || !password || password.length < 8 || password.length > 128) return res.status(400).json({ success: false, message: 'Name, valid email, phone number, and an 8- to 128-character password are required', data: null })
     let user = await User.findOne({ email: normalizedEmail }).select('+passwordHash +verificationCodeHash +verificationCodeExpiresAt +sessionVersion')
     if (user?.isEmailVerified) return res.status(409).json({ success: false, message: 'An account with this email already exists', data: null })

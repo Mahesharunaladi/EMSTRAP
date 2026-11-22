@@ -1,9 +1,16 @@
 import axios from 'axios'
 
-const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+const isLocalBrowser = typeof window !== 'undefined' &&
+  !navigator.userAgent.includes('EmSTraP-App') &&
+  window.location.protocol !== 'capacitor:' &&
+  window.location.protocol !== 'content:' &&
+  window.location.protocol !== 'file:' &&
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') &&
+  import.meta.env.DEV
+
 let baseUrl = (import.meta.env.VITE_API_URL && import.meta.env.VITE_API_URL.trim() !== '')
   ? import.meta.env.VITE_API_URL
-  : (isLocal ? 'http://localhost:5001/api' : 'https://emstrap-backend-utuo.onrender.com/api')
+  : (isLocalBrowser ? 'http://localhost:5001/api' : 'https://emstrap-backend-utuo.onrender.com/api')
 
 if (baseUrl.includes('emstrap-backend.onrender.com') && !baseUrl.includes('emstrap-backend-utuo.onrender.com')) {
   baseUrl = baseUrl.replace('emstrap-backend.onrender.com', 'emstrap-backend-utuo.onrender.com')

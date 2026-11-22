@@ -7,6 +7,16 @@ export function isAllowedOrigin(origin) {
   if (!origin) return true
   if (configuredOrigins.includes(origin)) return true
 
+  // Support mobile WebView, Capacitor, and Cordova origins
+  if (
+    origin === 'capacitor://localhost' ||
+    origin === 'http://localhost' ||
+    origin === 'https://localhost' ||
+    origin.startsWith('ionic://')
+  ) {
+    return true
+  }
+
   try {
     const url = new URL(origin)
     const hostname = url.hostname

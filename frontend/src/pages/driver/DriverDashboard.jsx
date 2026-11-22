@@ -634,9 +634,9 @@ export default function DriverDashboard() {
     {/* Pre-Ride Biometric Verification Camera Modal */}
     {biometricModalOpen && (
       <DriverCameraModal
-        title="Driver Identity Verification"
-        subtitle="Pre-Ride Biometric Check"
-        instructions="Hold your phone at eye level. Ensure your face and eyes are clearly visible in the guide frame to verify against your registration photo before starting the ride."
+        title="Driver Eye Identification"
+        subtitle="Ocular Biometric Check"
+        instructions="Align ONLY your eyes inside the frame. Ensure both eyes are open and clearly visible in good light."
         onClose={() => {
           setBiometricModalOpen(false)
           setPendingAction(null)

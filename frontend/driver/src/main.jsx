@@ -11,7 +11,8 @@ import { initSafeGeolocation } from '../../src/utils/safeGeolocation'
 initSafeGeolocation()
 
 function DriverRoute({ children }) {
-  return sessionStorage.getItem('emstrap_driver_session') ? children : <Navigate to="/driver" replace />
+  const hasSession = localStorage.getItem('emstrap_driver_token') || sessionStorage.getItem('emstrap_driver_session')
+  return hasSession ? children : <Navigate to="/driver" replace />
 }
 
 createRoot(document.getElementById('root')).render(

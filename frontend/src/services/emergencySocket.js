@@ -1,8 +1,17 @@
 import { io } from 'socket.io-client'
 import api from './api'
 
-const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-let socketUrl = (import.meta.env.VITE_SOCKET_URL && import.meta.env.VITE_SOCKET_URL.trim() !== '') ? import.meta.env.VITE_SOCKET_URL : (isLocal ? 'http://localhost:5001' : 'https://emstrap-backend-utuo.onrender.com')
+const isLocalBrowser = typeof window !== 'undefined' &&
+  !navigator.userAgent.includes('EmSTraP-App') &&
+  window.location.protocol !== 'capacitor:' &&
+  window.location.protocol !== 'content:' &&
+  window.location.protocol !== 'file:' &&
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') &&
+  import.meta.env.DEV
+
+let socketUrl = (import.meta.env.VITE_SOCKET_URL && import.meta.env.VITE_SOCKET_URL.trim() !== '')
+  ? import.meta.env.VITE_SOCKET_URL
+  : (isLocalBrowser ? 'http://localhost:5001' : 'https://emstrap-backend-utuo.onrender.com')
 if (socketUrl.includes('emstrap-backend.onrender.com') && !socketUrl.includes('emstrap-backend-utuo.onrender.com')) {
   socketUrl = socketUrl.replace('emstrap-backend.onrender.com', 'emstrap-backend-utuo.onrender.com')
 }

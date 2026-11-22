@@ -1,17 +1,17 @@
 import { Ambulance, MapPin, Navigation, PhoneCall, Siren } from 'lucide-react'
-
-function hasCoords(point) {
-  return Number.isFinite(Number(point?.lat)) && Number.isFinite(Number(point?.lng))
-}
+import { normalizeCoords } from '../utils/geoUtils'
 
 function mapsUrl(point) {
-  return `https://www.google.com/maps?q=${point.lat},${point.lng}`
+  const norm = normalizeCoords(point)
+  return norm ? `https://www.google.com/maps?q=${norm.lat},${norm.lng}` : '#'
 }
 
 export default function EmergencySosCard({ emergency }) {
-  const driver = emergency.driver
-  const driverLocation = emergency.driverLocation
-  const location = emergency.location
+  if (!emergency) return null
+
+  const driver = emergency.driver || {}
+  const driverLocation = normalizeCoords(emergency.driverLocation || emergency.driver?.currentLocation)
+  const location = normalizeCoords(emergency.location)
 
   return (
     <article className="rounded-2xl border-2 border-red-300 bg-red-50/70 p-4 shadow-sm">
@@ -27,7 +27,7 @@ export default function EmergencySosCard({ emergency }) {
             </span>
           </div>
           <p className="mt-1 text-[11px] text-slate-500">
-            SOS Request #{String(emergency._id || emergency.emergencyId).slice(-8)} · {new Date(emergency.createdAt || Date.now()).toLocaleTimeString()}
+            SOS Request #{String(emergency._id || emergency.emergencyId || 'active').slice(-8)} · {new Date(emergency.createdAt || Date.now()).toLocaleTimeString()}
           </p>
         </div>
       </div>
@@ -35,7 +35,7 @@ export default function EmergencySosCard({ emergency }) {
       {location && (
         <div className="mt-3 flex items-start gap-2 text-xs text-slate-700 bg-white/80 p-2.5 rounded-xl border border-red-100">
           <MapPin size={15} className="mt-0.5 shrink-0 text-red-600" />
-          <span><b>Incident Location:</b> {location.lat?.toFixed(5)}, {location.lng?.toFixed(5)}</span>
+          <span><b>Incident Location:</b> {location.lat.toFixed(5)}, {location.lng.toFixed(5)}</span>
         </div>
       )}
 
@@ -46,7 +46,7 @@ export default function EmergencySosCard({ emergency }) {
       )}
 
       {/* Driver Contact Card */}
-      {driver && (
+      {(driver?.name || driver?.phone || driver?.photo || driver?.selfie) && (
         <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-red-200 bg-white p-3 shadow-sm">
           <div className="flex items-center gap-3 min-w-0">
             {driver.photo || driver.selfie?.url ? (
@@ -58,7 +58,7 @@ export default function EmergencySosCard({ emergency }) {
             )}
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
-                <p className="text-xs font-bold text-slate-900 truncate">{driver.name || 'Emergency Responder'}</p>
+                <p className="text-xs font-bold text-slate-900 truncate">{driver.name || 'Assigned Govt Driver'}</p>
                 <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[9px] font-bold text-red-800">Govt Unit</span>
               </div>
               <p className="text-[11px] text-slate-600 font-medium">{driver.phone ? `Phone: ${driver.phone}` : 'Government Emergency Unit'}</p>
@@ -76,20 +76,20 @@ export default function EmergencySosCard({ emergency }) {
       )}
 
       {/* Live Driver Movement Map */}
-      {hasCoords(driverLocation) ? (
+      {driverLocation ? (
         <div className="mt-3 space-y-2">
           <div className="overflow-hidden rounded-2xl border border-red-200 bg-slate-100 shadow-inner">
             <iframe
               title="Live Emergency Ambulance Tracking"
               className="h-44 w-full border-0"
               loading="lazy"
-              src={`https://www.openstreetmap.org/export/embed.html?bbox=${Number(driverLocation.lng) - 0.008}%2C${Number(driverLocation.lat) - 0.008}%2C${Number(driverLocation.lng) + 0.008}%2C${Number(driverLocation.lat) + 0.008}&layer=mapnik&marker=${driverLocation.lat}%2C${driverLocation.lng}`}
+              src={`https://www.openstreetmap.org/export/embed.html?bbox=${driverLocation.lng - 0.008}%2C${driverLocation.lat - 0.008}%2C${driverLocation.lng + 0.008}%2C${driverLocation.lat + 0.008}&layer=mapnik&marker=${driverLocation.lat}%2C${driverLocation.lng}`}
             />
           </div>
           <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-100 bg-emerald-50 p-2.5">
             <div>
               <p className="text-xs font-bold text-emerald-900">Ambulance moving · Live GPS</p>
-              <p className="text-[10px] text-emerald-700">{Number(driverLocation.lat).toFixed(5)}, {Number(driverLocation.lng).toFixed(5)}</p>
+              <p className="text-[10px] text-emerald-700">{driverLocation.lat.toFixed(5)}, {driverLocation.lng.toFixed(5)}</p>
             </div>
             <a
               href={mapsUrl(driverLocation)}

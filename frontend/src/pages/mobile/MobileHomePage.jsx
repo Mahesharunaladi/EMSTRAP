@@ -1,4 +1,4 @@
-import { Ambulance, ArrowRight, CalendarClock, ChevronRight, HeartPulse, LocateFixed, MapPin, ShieldAlert, Siren } from 'lucide-react'
+import { Ambulance, ArrowRight, CalendarClock, ChevronRight, HeartPulse, LocateFixed, MapPin, PhoneCall, ShieldAlert, Siren } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
@@ -9,6 +9,7 @@ import LocationSearchModal from '../../components/LocationSearchModal'
 import { dispatchEmergency, joinUserRoom, onDriverAssigned, onDriverLocationUpdated, onEmergencyCreated, sendUserLocation } from '../../services/emergencySocket'
 import { useAuth } from '../../context/AuthContext'
 import useUserBookings from '../../hooks/useUserBookings'
+import { normalizeCoords } from '../../utils/geoUtils'
 
 const quickActions = [
   { title: 'Emergency SOS', description: 'Government ambulance now', icon: Siren, className: 'mobile-emergency-card' },
@@ -28,7 +29,7 @@ export default function MobileHomePage() {
   const [driverLocation, setDriverLocation] = useState(null)
   const [driverPhoto, setDriverPhoto] = useState(null)
   const [cooldownSeconds, setCooldownSeconds] = useState(0)
-  const activeBooking = bookings.find(booking => activeStatuses.has(booking.status))
+  const activeBooking = (bookings || []).find(booking => activeStatuses.has(booking?.status))
 
   // 30-Minute Cooldown live countdown timer
   useEffect(() => {
@@ -62,8 +63,9 @@ export default function MobileHomePage() {
             setDriverPhoto(activeEmerg.driver.photo || activeEmerg.driver.selfie?.url)
           }
         }
-        if (activeEmerg.driverLocation) {
-          setDriverLocation(activeEmerg.driverLocation)
+        const normLoc = normalizeCoords(activeEmerg.driverLocation || activeEmerg.driver?.currentLocation)
+        if (normLoc) {
+          setDriverLocation(normLoc)
         }
       }
     }
@@ -75,7 +77,7 @@ export default function MobileHomePage() {
     } else if (user?.currentLocation?.address) {
       setSelectedAddress(user.currentLocation.address)
     } else if (currentLocation?.lat && currentLocation?.lng) {
-      setSelectedAddress(`${currentLocation.lat.toFixed(4)}, ${currentLocation.lng.toFixed(4)}`)
+      setSelectedAddress(`${Number(currentLocation.lat).toFixed(4)}, ${Number(currentLocation.lng).toFixed(4)}`)
     }
   }, [currentLocation?.address, user?.currentLocation?.address, currentLocation?.lat, currentLocation?.lng])
 
@@ -87,40 +89,55 @@ export default function MobileHomePage() {
   }, [user?.id, emergency?._id, emergency?.emergencyId])
 
   useEffect(() => {
-    const removeCreated = onEmergencyCreated(event => setEmergency(event.data))
+    const removeCreated = onEmergencyCreated(event => {
+      if (event?.data) {
+        setEmergency(prev => ({ ...(prev || {}), ...event.data }))
+      }
+    })
+
     const removeAssigned = onDriverAssigned(assignment => {
+      if (!assignment) return
       setEmergency(current => ({
         ...(current || {}),
         status: assignment.status || 'ACCEPTED',
-        assignedDriverId: assignment.driver?.id,
-        driver: assignment.driver,
+        assignedDriverId: assignment.driver?.id || assignment.driver?._id || current?.assignedDriverId,
+        driver: assignment.driver || current?.driver,
       }))
       if (assignment.driver) {
-        setDriver(assignment.driver)
-        if (assignment.driver.selfie?.url || assignment.driver.photo) {
-          setDriverPhoto(assignment.driver.selfie?.url || assignment.driver.photo)
-        }
+        setDriver(prev => ({ ...(prev || {}), ...assignment.driver }))
+        const photo = assignment.driver.selfie?.url || assignment.driver.photo
+        if (photo) setDriverPhoto(photo)
+        const dLoc = normalizeCoords(assignment.driver.currentLocation)
+        if (dLoc) setDriverLocation(dLoc)
       }
       toast.success('Ambulance driver has accepted your emergency request!')
     })
+
     const removeLocation = onDriverLocationUpdated(payload => {
-      if (payload?.location) {
-        setDriverLocation(payload.location)
+      const normLoc = normalizeCoords(payload?.location)
+      if (normLoc) {
+        setDriverLocation(normLoc)
       }
       if (payload?.driverPhoto) setDriverPhoto(payload.driverPhoto)
     })
+
     return () => { removeCreated(); removeAssigned(); removeLocation() }
   }, [])
 
   useEffect(() => {
-    if (emergency?.emergencyId && currentLocation) sendUserLocation({ emergencyId: emergency.emergencyId, lat: currentLocation.lat, lng: currentLocation.lng })
-  }, [emergency?.emergencyId, currentLocation?.lat, currentLocation?.lng])
+    if (emergency?.emergencyId && currentLocation) {
+      const normUserLoc = normalizeCoords(currentLocation)
+      if (normUserLoc) {
+        sendUserLocation({ emergencyId: emergency.emergencyId, lat: normUserLoc.lat, lng: normUserLoc.lng })
+      }
+    }
+  }, [emergency?.emergencyId, currentLocation])
 
   const capture = async payload => {
     try {
       const data = await dispatchEmergency({ ...payload, userId: user?.id })
       if (data) {
-        setEmergency(data)
+        setEmergency(prev => ({ ...(prev || {}), ...data }))
         if (data.driver) {
           setDriver(data.driver)
           if (data.driver.photo || data.driver.selfie?.url) {
@@ -142,6 +159,9 @@ export default function MobileHomePage() {
       toast.error(err.response?.data?.message || err.message || 'Emergency dispatch failed')
     }
   }
+
+  const validDriverLoc = normalizeCoords(driverLocation)
+  const validEmergencyLoc = normalizeCoords(emergency?.location)
 
   return <MobileAppShell>
     <section>
@@ -184,29 +204,36 @@ export default function MobileHomePage() {
           </p>
         </div>
       </div>
+
+      {validEmergencyLoc && (
+        <div className="mt-3 flex items-start gap-2 text-xs text-slate-700 bg-white/80 p-2.5 rounded-xl border border-red-100">
+          <MapPin size={15} className="mt-0.5 shrink-0 text-red-600" />
+          <span><b>Incident Location:</b> {validEmergencyLoc.lat.toFixed(5)}, {validEmergencyLoc.lng.toFixed(5)}</span>
+        </div>
+      )}
       
       {/* Realtime OpenStreetMap embed when driver location is live */}
-      {driverLocation?.lat && driverLocation?.lng ? (
+      {validDriverLoc ? (
         <div className="mt-4 overflow-hidden rounded-2xl border border-red-200 bg-slate-100 shadow-inner">
           <iframe
             title="Emergency Driver Tracking"
             className="h-48 w-full border-0"
             loading="lazy"
-            src={`https://www.openstreetmap.org/export/embed.html?bbox=${Number(driverLocation.lng) - 0.008}%2C${Number(driverLocation.lat) - 0.008}%2C${Number(driverLocation.lng) + 0.008}%2C${Number(driverLocation.lat) + 0.008}&layer=mapnik&marker=${driverLocation.lat}%2C${driverLocation.lng}`}
+            src={`https://www.openstreetmap.org/export/embed.html?bbox=${validDriverLoc.lng - 0.008}%2C${validDriverLoc.lat - 0.008}%2C${validDriverLoc.lng + 0.008}%2C${validDriverLoc.lat + 0.008}&layer=mapnik&marker=${validDriverLoc.lat}%2C${validDriverLoc.lng}`}
           />
         </div>
       ) : (
         <div className="driver-map mt-4 h-44"><div className="driver-map-grid" /><span className="driver-marker driver-marker-user"><MapPin size={16} fill="currentColor" /></span><div className="absolute bottom-2 left-2 rounded-lg bg-white/90 px-2 py-1 text-[10px] font-bold">{emergency.status === 'ACCEPTED' ? 'Driver accepted! Connecting GPS feed...' : "Waiting for responder's GPS coordinates..."}</div></div>
       )}
 
-      {driverLocation && (
+      {validDriverLoc && (
         <div className="mt-3 flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 p-2.5 text-xs text-emerald-900">
           <span className="flex items-center gap-1.5 font-bold">
             <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-            Live ambulance coordinates: {Number(driverLocation.lat).toFixed(5)}, {Number(driverLocation.lng).toFixed(5)}
+            Live ambulance coordinates: {validDriverLoc.lat.toFixed(5)}, {validDriverLoc.lng.toFixed(5)}
           </span>
           <a
-            href={`https://www.google.com/maps?q=${driverLocation.lat},${driverLocation.lng}`}
+            href={`https://www.google.com/maps?q=${validDriverLoc.lat},${validDriverLoc.lng}`}
             target="_blank"
             rel="noreferrer"
             className="rounded-lg bg-emerald-700 px-2.5 py-1 text-[11px] font-bold text-white shadow hover:bg-emerald-800"
@@ -216,7 +243,7 @@ export default function MobileHomePage() {
         </div>
       )}
 
-      {(driverPhoto || driver?.name) && (
+      {(driverPhoto || driver?.name || driver?.phone) && (
         <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-red-200 bg-white p-3.5 shadow-sm">
           <div className="flex items-center gap-3 min-w-0">
             {driverPhoto ? (
@@ -228,7 +255,7 @@ export default function MobileHomePage() {
             )}
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <p className="text-xs font-bold text-slate-900 truncate">{driver?.name || 'Assigned Driver'}</p>
+                <p className="text-xs font-bold text-slate-900 truncate">{driver?.name || 'Assigned Govt Driver'}</p>
                 <span className="rounded-full bg-red-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-red-800">Govt Response</span>
               </div>
               <p className="text-[11px] text-slate-600 mt-0.5 font-medium">{driver?.phone ? `Phone: ${driver.phone}` : 'Government Emergency Unit'}</p>

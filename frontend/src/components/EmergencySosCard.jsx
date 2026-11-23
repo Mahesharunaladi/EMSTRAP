@@ -1,5 +1,7 @@
-import { Ambulance, MapPin, Navigation, PhoneCall, Siren } from 'lucide-react'
+import { Ambulance, Clock, MapPin, Navigation, PhoneCall, Siren } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { normalizeCoords } from '../utils/geoUtils'
+import { calculateEta } from '../utils/etaCalculator'
 
 function mapsUrl(point) {
   const norm = normalizeCoords(point)
@@ -12,6 +14,12 @@ export default function EmergencySosCard({ emergency }) {
   const driver = emergency.driver || {}
   const driverLocation = normalizeCoords(emergency.driverLocation || emergency.driver?.currentLocation)
   const location = normalizeCoords(emergency.location)
+
+  const eta = (driverLocation && location && (emergency.status === 'ACCEPTED' || emergency.status === 'ARRIVED'))
+    ? calculateEta(driverLocation, location, 45)
+    : null
+
+  const emergencyId = emergency._id || emergency.emergencyId
 
   return (
     <article className="rounded-2xl border-2 border-red-300 bg-red-50/70 p-4 shadow-sm">
@@ -27,10 +35,23 @@ export default function EmergencySosCard({ emergency }) {
             </span>
           </div>
           <p className="mt-1 text-[11px] text-slate-500">
-            SOS Request #{String(emergency._id || emergency.emergencyId || 'active').slice(-8)} · {new Date(emergency.createdAt || Date.now()).toLocaleTimeString()}
+            SOS Request #{String(emergencyId || 'active').slice(-8)} · {new Date(emergency.createdAt || Date.now()).toLocaleTimeString()}
           </p>
         </div>
       </div>
+
+      {/* Live ETA Badge */}
+      {eta && (
+        <div className="mt-3 flex items-center justify-between rounded-xl bg-amber-500/15 p-2.5 border border-amber-300">
+          <div className="flex items-center gap-2">
+            <Clock size={16} className="text-amber-700 animate-pulse" />
+            <span className="text-xs font-bold text-amber-950">{eta.badgeText}</span>
+          </div>
+          <span className="rounded-lg bg-amber-500 px-2.5 py-0.5 text-[10px] font-black text-white">
+            {eta.text}
+          </span>
+        </div>
+      )}
 
       {location && (
         <div className="mt-3 flex items-start gap-2 text-xs text-slate-700 bg-white/80 p-2.5 rounded-xl border border-red-100">
@@ -111,6 +132,15 @@ export default function EmergencySosCard({ emergency }) {
           <span className="h-2 w-2 rounded-full bg-red-600 animate-pulse" />
           Alerting nearest government ambulance units & police command...
         </div>
+      )}
+
+      {emergencyId && (
+        <Link
+          to={`/emergency/active/${emergencyId}`}
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 py-2.5 text-xs font-bold text-white shadow hover:bg-slate-800"
+        >
+          Open Incident Command & Evidence Page
+        </Link>
       )}
     </article>
   )

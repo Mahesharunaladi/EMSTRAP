@@ -136,25 +136,29 @@ export default function MobileHomePage() {
   const capture = async payload => {
     try {
       const data = await dispatchEmergency({ ...payload, userId: user?.id })
+      setCameraOpen(false)
       if (data) {
+        const emId = data.emergencyId || data._id
         setEmergency(prev => ({ ...(prev || {}), ...data }))
-        if (data.driver) {
-          setDriver(data.driver)
-          if (data.driver.photo || data.driver.selfie?.url) {
-            setDriverPhoto(data.driver.photo || data.driver.selfie?.url)
-          }
+        if (data.merged) {
+          toast.success('Alert already active for this location — your photo has been added to the existing emergency report')
+        } else {
+          toast.success('SOS sent! Government ambulance and police alerted.')
+        }
+        if (emId) {
+          navigate(`/emergency/active/${emId}`)
+          return
         }
       }
-      setCameraOpen(false)
-      toast.success('SOS sent! Government ambulance and police alerted.')
     } catch (err) {
       setCameraOpen(false)
       const resData = err.response?.data?.data
+      if (resData?.existingEmergencyId) {
+        navigate(`/emergency/active/${resData.existingEmergencyId}`)
+        return
+      }
       if (resData?.remainingSeconds) {
         setCooldownSeconds(resData.remainingSeconds)
-        if (resData.existingEmergencyId) {
-          setEmergency(prev => ({ ...(prev || {}), _id: resData.existingEmergencyId, createdAt: resData.createdAt, status: resData.status || 'PENDING' }))
-        }
       }
       toast.error(err.response?.data?.message || err.message || 'Emergency dispatch failed')
     }

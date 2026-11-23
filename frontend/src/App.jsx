@@ -17,6 +17,7 @@ import DriverPortal from './pages/driver/DriverPortal'
 import DriverDashboard from './pages/driver/DriverDashboard'
 import DriverProfile from './pages/driver/DriverProfile'
 import PoliceDashboard from './pages/police/PoliceDashboard'
+import ActiveEmergencyPage from './pages/emergency/ActiveEmergencyPage'
 
 function RootRedirect() {
   const { user, loading } = useAuth()
@@ -91,6 +92,7 @@ export default function App() {
             <Route path="/app/account/billing" element={<AccountHistoryPage type="billing" />} />
             <Route path="/app/account/rides" element={<AccountHistoryPage type="rides" />} />
             <Route path="/booking" element={<BookingPage />} />
+            <Route path="/emergency/active/:emergencyId" element={<ActiveEmergencyPage />} />
           </Route>
 
           {/* Driver Portal Routes */}
@@ -100,6 +102,7 @@ export default function App() {
           <Route path="/driver/profile" element={<DriverRoute><DriverProfile /></DriverRoute>} />
 
           {/* Police Command Portal Routes */}
+          <Route path="/emergency/active/:emergencyId" element={<ActiveEmergencyPage />} />
           <Route path="/police" element={<PoliceDashboard />} />
           <Route path="/dashboard/police" element={<PoliceDashboard />} />
 

@@ -1,5 +1,6 @@
 import { Ambulance, Calendar, CheckCircle2, CircleDollarSign, Clock, MapPin, Navigation, Phone, ShieldCheck, UserRound } from 'lucide-react'
 import { normalizeCoords } from '../utils/geoUtils'
+import { calculateEta } from '../utils/etaCalculator'
 
 function formatMoney(amount) {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amount || 0)
@@ -25,7 +26,12 @@ export default function BookedAmbulanceCard({ booking }) {
   const dropoff = booking.dropoffLocation || {}
   const driver = booking.driver || {}
   const driverLocation = normalizeCoords(booking.driverLocation || booking.driver?.currentLocation)
+  const pickupLocation = normalizeCoords(booking.pickupLocation)
   const badge = statusBadges[booking.status] || { label: booking.status || 'Active', color: 'bg-slate-100 text-slate-800' }
+
+  const eta = (driverLocation && pickupLocation && (booking.status === 'ACCEPTED' || booking.status === 'STARTED'))
+    ? calculateEta(driverLocation, pickupLocation, 35) // private ambulance pickup ETA (~35 km/h)
+    : null
 
   return <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
     <div className="flex items-start justify-between gap-3">
@@ -47,6 +53,19 @@ export default function BookedAmbulanceCard({ booking }) {
         <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Fixed rate</p>
       </div>
     </div>
+
+    {/* Live Driver ETA Banner */}
+    {eta && (
+      <div className="mt-3 flex items-center justify-between rounded-xl bg-blue-500/15 p-2.5 border border-blue-300">
+        <div className="flex items-center gap-2">
+          <Clock size={16} className="text-blue-700 animate-pulse" />
+          <span className="text-xs font-bold text-blue-950">{eta.badgeText}</span>
+        </div>
+        <span className="rounded-lg bg-blue-600 px-2.5 py-0.5 text-[10px] font-black text-white">
+          {eta.text}
+        </span>
+      </div>
+    )}
 
     <div className="mt-3 space-y-2 rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
       <div className="flex items-start gap-2">

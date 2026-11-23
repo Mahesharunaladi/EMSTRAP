@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import DriverAppShell from './DriverAppShell'
+import { playEmergencySiren, stopEmergencySiren, playBookingChime } from '../../utils/audioPlayer'
 import DriverCameraModal from './DriverCameraModal'
 import { verifyDriverFaceMatch } from '../../utils/faceMatcher'
 import api from '../../services/api'
@@ -89,24 +90,35 @@ export default function DriverDashboard() {
         setBookings(current => current.filter(item => String(item._id) !== String(booking?._id)))
       }
     }
+    const onEmergencyAlert = alert => {
+      if (driver.driverType === 'GOVERNMENT') {
+        setEmergency(alert)
+        playEmergencySiren(true) // Loop Klaxon buzzer until accepted
+        toast.success('Emergency SOS alert received')
+      }
+    }
+
+    const wrappedNewBooking = booking => {
+      playBookingChime() // Triple-chime notification for private booking
+      onNewBooking(booking)
+    }
+
     return joinDriverRoom(
       driver.id,
-      alert => {
-        if (driver.driverType === 'GOVERNMENT') {
-          setEmergency(alert)
-          toast.success('Emergency SOS alert received')
-        }
-      },
+      onEmergencyAlert,
       driver.driverType,
       assignment => {
         if (driver.driverType === 'GOVERNMENT') {
+          if (String(assignment.driver?.id) === String(driver.id)) {
+            stopEmergencySiren() // Stop alarm once accepted
+          }
           setEmergency(current => {
             if (!current || String(current._id || current.emergencyId) !== String(assignment.emergencyId)) return current
             return String(assignment.driver?.id) === String(driver.id) ? { ...current, status: assignment.status, assignedDriverId: driver.id } : null
           })
         }
       },
-      onNewBooking,
+      wrappedNewBooking,
       onBookingAssignment,
     )
   }, [driver?.id, driver?.driverType])
@@ -270,7 +282,7 @@ export default function DriverDashboard() {
     }
   }
 
-  const accept = async () => {
+  const accept = async () => { stopEmergencySiren();
     // Prompt biometric selfie check before accepting and starting the emergency ride
     startBiometricVerification({ type: 'EMERGENCY' })
   }

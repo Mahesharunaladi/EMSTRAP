@@ -72,10 +72,22 @@ export default function UserDashboard() {
     try {
       const dispatched = await dispatchEmergency({ ...payload, userId: user?.id })
       setCameraOpen(false)
-      setEmergency(prev => ({ ...(prev || {}), ...payload, emergencyId: dispatched?.emergencyId || dispatched?._id, status: 'PENDING' }))
-      toast.success('SOS sent. Nearby responders have been alerted.')
+      const emId = dispatched?.emergencyId || dispatched?._id
+      if (dispatched?.merged) {
+        toast.success('Alert already active for this location — your photo has been added to the existing emergency report')
+      } else {
+        toast.success('SOS sent. Nearby responders have been alerted.')
+      }
+      if (emId) {
+        window.location.href = `/emergency/active/${emId}`
+      }
     } catch (err) {
       setCameraOpen(false)
+      const resData = err.response?.data?.data
+      if (resData?.existingEmergencyId) {
+        window.location.href = `/emergency/active/${resData.existingEmergencyId}`
+        return
+      }
       toast.error(err.response?.data?.message || err.message || 'Emergency dispatch failed')
     }
   }

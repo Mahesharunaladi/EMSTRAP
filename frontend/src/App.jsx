@@ -20,7 +20,7 @@ import PoliceDashboard from './pages/police/PoliceDashboard'
 import ActiveEmergencyPage from './pages/emergency/ActiveEmergencyPage'
 
 function RootRedirect() {
-  const { user, loading } = useAuth()
+  const { user, loading, isAuthInitializing } = useAuth()
   const [timedOut, setTimedOut] = useState(false)
 
   useEffect(() => {
@@ -28,7 +28,7 @@ function RootRedirect() {
     return () => clearTimeout(t)
   }, [])
 
-  if (loading && !timedOut) {
+  if ((isAuthInitializing || loading) && !user && !timedOut) {
     return (
       <div className="grid min-h-screen place-items-center bg-[#f7f7f5] text-sm font-semibold text-slate-500">
         <div className="flex flex-col items-center gap-3">
@@ -42,7 +42,7 @@ function RootRedirect() {
 }
 
 function PublicRoute({ children }) {
-  const { user, loading } = useAuth()
+  const { user, loading, isAuthInitializing } = useAuth()
   const [timedOut, setTimedOut] = useState(false)
 
   useEffect(() => {
@@ -50,7 +50,7 @@ function PublicRoute({ children }) {
     return () => clearTimeout(t)
   }, [])
 
-  if (loading && !timedOut) {
+  if ((isAuthInitializing || loading) && !user && !timedOut) {
     return (
       <div className="grid min-h-screen place-items-center bg-[#f7f7f5] text-sm font-semibold text-slate-500">
         <div className="flex flex-col items-center gap-3">

@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import api from '../services/api'
+import { getItem, setItem, removeItem, clearAuthSession } from '../utils/persistentStorage'
 
 const AuthContext = createContext(null)
 
@@ -9,31 +10,81 @@ export function AuthProvider({ children }) {
     try { return JSON.parse(sessionStorage.getItem('emstrap_pending_verification')) || null } catch { return null }
   })
   const [loading, setLoading] = useState(true)
+  const [isAuthInitializing, setIsAuthInitializing] = useState(true)
   const [locationStatus, setLocationStatus] = useState('starting')
   const [currentLocation, setCurrentLocation] = useState(null)
   const [locationRetry, setLocationRetry] = useState(0)
   const latestPosition = useRef(null)
   const lastLocationSyncAt = useRef(0)
 
+  // Fast-hydrate from persistent native storage on app boot
   useEffect(() => {
-    api.get('/auth/me')
-      .then(({ data }) => {
-        const currentUser = data.data.user
-        setUser(currentUser)
-        if (currentUser?.currentLocation?.lat && currentUser?.currentLocation?.lng) {
-          setCurrentLocation(currentUser.currentLocation)
-          latestPosition.current = currentUser.currentLocation
-          setLocationStatus('live')
+    let active = true
+
+    const bootstrapAuth = async () => {
+      try {
+        const [savedToken, savedUserData] = await Promise.all([
+          getItem('emstrap_token'),
+          getItem('emstrap_user_data')
+        ])
+
+        if (!active) return
+
+        if (savedToken && savedUserData) {
+          try {
+            const parsedUser = typeof savedUserData === 'string' ? JSON.parse(savedUserData) : savedUserData
+            if (parsedUser) {
+              setUser(parsedUser)
+              if (parsedUser.currentLocation?.lat && parsedUser.currentLocation?.lng) {
+                setCurrentLocation(parsedUser.currentLocation)
+                latestPosition.current = parsedUser.currentLocation
+                setLocationStatus('live')
+              }
+            }
+          } catch (_) {}
         }
-      })
-      .catch(() => setUser(null))
-      .finally(() => setLoading(false))
+
+        // Validate session with backend without clearing session on offline/timeouts
+        api.get('/auth/me')
+          .then(async ({ data }) => {
+            if (!active) return
+            const currentUser = data.data.user
+            setUser(currentUser)
+            await setItem('emstrap_user_data', JSON.stringify(currentUser))
+            if (currentUser?.currentLocation?.lat && currentUser?.currentLocation?.lng) {
+              setCurrentLocation(currentUser.currentLocation)
+              latestPosition.current = currentUser.currentLocation
+              setLocationStatus('live')
+            }
+          })
+          .catch(async (err) => {
+            // Only clear storage if explicitly 401 Unauthorized (e.g. invalid/revoked token)
+            if (err.response?.status === 401 && err.response?.data?.code === 'INVALID_TOKEN') {
+              await clearAuthSession()
+              if (active) setUser(null)
+            }
+          })
+          .finally(() => {
+            if (active) {
+              setLoading(false)
+              setIsAuthInitializing(false)
+            }
+          })
+      } catch (e) {
+        if (active) {
+          setLoading(false)
+          setIsAuthInitializing(false)
+        }
+      }
+    }
+
+    bootstrapAuth()
+    return () => { active = false }
   }, [])
 
   useEffect(() => {
     if (!user) { setLocationStatus('signed-out'); latestPosition.current = null; return undefined }
 
-    // If user already has a valid location in profile, use it immediately and DO NOT call CoreLocation automatically
     if (user?.currentLocation?.lat && user?.currentLocation?.lng) {
       setCurrentLocation(user.currentLocation)
       latestPosition.current = user.currentLocation
@@ -41,7 +92,6 @@ export function AuthProvider({ children }) {
       return undefined
     }
 
-    // If CoreLocation was reported unavailable on this device (e.g. Mac without GPS), suppress automatic lookups
     const isCoreLocationBroken = typeof window !== 'undefined' && sessionStorage.getItem('emstrap_corelocation_unavailable') === 'true'
     if (isCoreLocationBroken) {
       setLocationStatus('approximate')
@@ -69,7 +119,6 @@ export function AuthProvider({ children }) {
 
     const useNetworkFallback = async () => {
       if (!active) return
-      // If user already has a saved valid location, keep it!
       if (user?.currentLocation?.lat && user?.currentLocation?.lng) {
         setCurrentLocation(user.currentLocation)
         setLocationStatus('live')
@@ -169,10 +218,19 @@ export function AuthProvider({ children }) {
 
   const signIn = async (email, password) => {
     const { data } = await api.post('/auth/login', { email, password })
-    if (data.data?.token) localStorage.setItem('emstrap_token', data.data.token)
-    setUser(data.data.user)
-    if (data.data.user?.currentLocation?.lat && data.data.user?.currentLocation?.lng) {
-      setCurrentLocation(data.data.user.currentLocation)
+    const token = data.data?.token
+    const currentUser = data.data?.user
+    if (token) {
+      await setItem('emstrap_token', token)
+      await setItem('emstrap_user_token', token)
+      await setItem('emstrap_role', 'USER')
+    }
+    if (currentUser) {
+      await setItem('emstrap_user_data', JSON.stringify(currentUser))
+      setUser(currentUser)
+      if (currentUser?.currentLocation?.lat && currentUser?.currentLocation?.lng) {
+        setCurrentLocation(currentUser.currentLocation)
+      }
     }
     return data
   }
@@ -188,10 +246,19 @@ export function AuthProvider({ children }) {
   const verifyEmail = async code => {
     if (!pendingVerification) throw new Error('Verification session expired')
     const { data } = await api.post('/auth/verify-email', { email: pendingVerification.email, code })
-    if (data.data?.token) localStorage.setItem('emstrap_token', data.data.token)
-    setUser(data.data.user)
-    if (data.data.user?.currentLocation?.lat && data.data.user?.currentLocation?.lng) {
-      setCurrentLocation(data.data.user.currentLocation)
+    const token = data.data?.token
+    const currentUser = data.data?.user
+    if (token) {
+      await setItem('emstrap_token', token)
+      await setItem('emstrap_user_token', token)
+      await setItem('emstrap_role', 'USER')
+    }
+    if (currentUser) {
+      await setItem('emstrap_user_data', JSON.stringify(currentUser))
+      setUser(currentUser)
+      if (currentUser?.currentLocation?.lat && currentUser?.currentLocation?.lng) {
+        setCurrentLocation(currentUser.currentLocation)
+      }
     }
     sessionStorage.removeItem('emstrap_pending_verification')
     setPendingVerification(null)
@@ -211,7 +278,7 @@ export function AuthProvider({ children }) {
 
   const signOut = async () => {
     try { await api.post('/auth/logout') } catch (_) {}
-    localStorage.removeItem('emstrap_token')
+    await clearAuthSession()
     setUser(null)
     setCurrentLocation(null)
   }
@@ -219,6 +286,7 @@ export function AuthProvider({ children }) {
   const updateProfile = async updates => {
     const { data } = await api.patch('/auth/profile', updates)
     setUser(data.data.user)
+    await setItem('emstrap_user_data', JSON.stringify(data.data.user))
     return data.data.user
   }
 
@@ -236,6 +304,7 @@ export function AuthProvider({ children }) {
     user,
     isAuthenticated: Boolean(user),
     loading,
+    isAuthInitializing,
     pendingVerification,
     locationStatus,
     currentLocation,
@@ -248,7 +317,7 @@ export function AuthProvider({ children }) {
     signOut,
     updateProfile,
     getHistory,
-  }), [user, loading, pendingVerification, locationStatus, currentLocation])
+  }), [user, loading, isAuthInitializing, pendingVerification, locationStatus, currentLocation])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

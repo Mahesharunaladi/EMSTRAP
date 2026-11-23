@@ -2,15 +2,45 @@ import { AmbulanceBooking, BookingUser, GovtDriver } from '../config/db.js'
 import { canDriverReceiveDispatch } from '../utils/driverDispatch.js'
 
 const activeBookingStatuses = ['ACCEPTED', 'STARTED']
-const tierRates = { STANDARD: 150, PREGNANCY: 250, ICU: 300, SPECIAL: 200 }
+
+/**
+ * Distance-Based Dynamic Fare Rates:
+ * 1. Standard Transport (STANDARD): Base ₹250 + ₹25/km
+ * 2. Maternity Support (PREGNANCY): Base ₹400 + ₹35/km
+ * 3. ICU / Advanced Life Support (ICU): Base ₹800 + ₹60/km
+ * 4. Bariatric / Custom (SPECIAL): Base ₹600 + ₹45/km
+ */
+export const TIER_CONFIG = {
+  STANDARD: { baseFare: 250, perKmRate: 25, label: 'Standard Transport' },
+  PREGNANCY: { baseFare: 400, perKmRate: 35, label: 'Maternity Support' },
+  ICU: { baseFare: 800, perKmRate: 60, label: 'ICU / Advanced Life Support' },
+  SPECIAL: { baseFare: 600, perKmRate: 45, label: 'Bariatric / Custom' }
+}
+
 const driverRooms = ['govt_drivers_channel', 'private_drivers_channel']
 const userRoom = id => `user:${id}`
 
 function validLocation(value) {
-  const lat = Number(value?.lat); const lng = Number(value?.lng)
+  const lat = Number(value?.lat != null ? value.lat : (Array.isArray(value) ? value[1] : value?.latitude))
+  const lng = Number(value?.lng != null ? value.lng : (Array.isArray(value) ? value[0] : value?.longitude))
   return Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180
     ? { lat, lng, source: value.source === 'browser-gps' ? 'browser-gps' : 'user-selected' }
     : null
+}
+
+function calculateDistanceKm(loc1, loc2) {
+  if (!loc1 || !loc2) return 2.0
+  const R = 6371
+  const dLat = (loc2.lat - loc1.lat) * (Math.PI / 180)
+  const dLng = (loc2.lng - loc1.lng) * (Math.PI / 180)
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(loc1.lat * (Math.PI / 180)) * Math.cos(loc2.lat * (Math.PI / 180)) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  const directDistance = R * c
+  // Road factor 1.3x with minimum chargeable distance 2 km
+  return Math.max(2.0, Number((directDistance * 1.3).toFixed(1)))
 }
 
 function publicBooking(booking) {
@@ -20,6 +50,8 @@ function publicBooking(booking) {
     destination: booking.destination, destinationLocation: booking.destinationLocation,
     driverLocation: booking.driverLocation, assignedDriverId: booking.assignedDriverId,
     assignedDriverType: booking.assignedDriverType, createdAt: booking.createdAt,
+    price: booking.price, totalFare: booking.price, estimatedFare: booking.price,
+    distanceKm: booking.distanceKm,
   }
 }
 
@@ -31,24 +63,46 @@ export async function createBooking(req, res, next) {
     const destination = typeof req.body.destination === 'string' ? req.body.destination.trim() : ''
     const pickupLocation = validLocation(req.body.pickupLocation)
     const destinationLocation = validLocation(req.body.destinationLocation)
-    if (!Object.hasOwn(tierRates, tier) || !pickup || pickup.length > 500 || !destination || destination.length > 500 || !pickupLocation || !destinationLocation) {
+
+    if (!Object.hasOwn(TIER_CONFIG, tier) || !pickup || pickup.length > 500 || !destination || destination.length > 500 || !pickupLocation || !destinationLocation) {
       return res.status(400).json({ success: false, message: 'Choose a service and provide pickup and drop-off addresses with valid map locations', data: null })
     }
+
     const bookingUser = await BookingUser.findOneAndUpdate(
       { email: req.user.email },
       { $set: { name: req.user.name, email: req.user.email, phone: req.user.phone || '' } },
       { upsert: true, returnDocument: 'after', runValidators: true },
     )
+
+    // Calculate dynamic distance and pricing
+    const config = TIER_CONFIG[tier]
+    const distanceKm = Number(req.body.distanceKm) > 0 ? Number(req.body.distanceKm) : calculateDistanceKm(pickupLocation, destinationLocation)
+    const calculatedFare = Math.round(config.baseFare + (distanceKm * config.perKmRate))
+
     const booking = await AmbulanceBooking.create({
-      userId: bookingUser._id, authUserId: req.user._id,
-      customerName: req.user.name, customerPhone: req.user.phone || '',
-      tier, status: 'PENDING', pickup, pickupLocation, destination, destinationLocation,
-      price: tierRates[tier],
+      userId: bookingUser._id,
+      authUserId: req.user._id,
+      customerName: req.user.name,
+      customerPhone: req.user.phone || '',
+      tier,
+      status: 'PENDING',
+      pickup,
+      pickupLocation,
+      destination,
+      destinationLocation,
+      price: calculatedFare,
+      distanceKm,
     })
+
     const payload = publicBooking(booking)
     const io = req.app.get('io')
     if (io) io.to('private_drivers_channel').emit('NEW_PRIVATE_BOOKING', payload)
-    res.status(201).json({ success: true, message: 'Ambulance request sent to available drivers', data: { booking: payload } })
+
+    res.status(201).json({
+      success: true,
+      message: 'Ambulance request sent to available drivers',
+      data: { booking: payload }
+    })
   } catch (error) { next(error) }
 }
 
@@ -66,6 +120,7 @@ export async function getMyBookings(req, res, next) {
       console.warn('[bookings] DB query temporary warning:', dbErr.message)
       return res.json({ success: true, message: 'Your ambulance bookings', data: { bookings: [] } })
     }
+
     const driverIds = [...new Set((bookings || []).map(booking => booking.assignedDriverId?.toString()).filter(Boolean))]
     let drivers = []
     try {
@@ -74,6 +129,7 @@ export async function getMyBookings(req, res, next) {
         : []
     } catch (_) { drivers = [] }
     const driversById = new Map((drivers || []).map(driver => [driver._id.toString(), driver]))
+
     const rides = (bookings || []).map(booking => {
       const assignedDriver = booking.assignedDriverId && driversById.get(booking.assignedDriverId.toString())
       return {
@@ -88,6 +144,7 @@ export async function getMyBookings(req, res, next) {
         } : {}),
       }
     })
+
     res.json({ success: true, message: 'Your ambulance bookings', data: { bookings: rides } })
   } catch (error) { next(error) }
 }
@@ -95,25 +152,19 @@ export async function getMyBookings(req, res, next) {
 export async function getDriverBookings(req, res, next) {
   try {
     if (req.driver.driverType === 'GOVERNMENT') {
-      return res.json({
-        success: true,
-        message: 'Government drivers only receive emergency SOS requests',
-        data: { bookings: [], driverStatus: req.driver.status, canReceiveBookings: false },
-      })
+      return res.json({ success: true, message: 'Government driver view', data: { bookings: [], driverStatus: req.driver.status, canReceiveBookings: false } })
     }
-    if (!canDriverReceiveDispatch(req.driver)) {
-      return res.json({
-        success: true,
-        message: 'Driver approval is required before receiving bookings',
-        data: { bookings: [], driverStatus: req.driver.status, canReceiveBookings: false },
-      })
+    const canReceive = canDriverReceiveDispatch(req.driver)
+    if (!canReceive) {
+      return res.status(403).json({ success: false, message: 'Driver approval or document verification is required before accepting bookings', data: { bookings: [], driverStatus: req.driver.status, canReceiveBookings: false } })
     }
     const bookings = await AmbulanceBooking.find({
       $or: [
         { status: 'PENDING', assignedDriverId: null },
-        { status: { $in: activeBookingStatuses }, assignedDriverId: req.driver._id },
+        { assignedDriverId: req.driver._id, status: { $in: activeBookingStatuses } },
       ],
-    }).sort({ createdAt: -1 }).limit(50).lean()
+    }).sort({ createdAt: -1 }).limit(20).lean()
+
     const driverBookings = bookings.map(booking => ({
       ...publicBooking(booking),
       ...(String(booking.assignedDriverId || '') === String(req.driver._id) ? { customerName: booking.customerName, customerPhone: booking.customerPhone } : {}),
@@ -130,7 +181,6 @@ export async function acceptDriverBooking(req, res, next) {
     }
     if (!canDriverReceiveDispatch(driver)) return res.status(403).json({ success: false, message: 'Driver approval or document verification is required before accepting bookings', data: null })
     
-    // Seed initial driverLocation from driver's currentLocation or pickup proximity so user immediately sees live location
     const initialLocation = driver.currentLocation || { lat: 12.9716, lng: 77.5946, source: 'driver-accepted', updatedAt: new Date() }
     const booking = await AmbulanceBooking.findOneAndUpdate(
       { _id: req.params.bookingId, status: 'PENDING', assignedDriverId: null },
@@ -138,6 +188,7 @@ export async function acceptDriverBooking(req, res, next) {
       { returnDocument: 'after', runValidators: true },
     ).lean()
     if (!booking) return res.status(409).json({ success: false, message: 'This booking was already accepted or is no longer available', data: null })
+
     const io = req.app.get('io')
     const assignment = { booking: { ...publicBooking(booking), customerName: booking.customerName, customerPhone: booking.customerPhone }, driver: { id: driver._id, name: driver.name, phone: driver.phone, driverType: driver.driverType } }
     if (io) {

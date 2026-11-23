@@ -1,16 +1,60 @@
 import { Ambulance, ArrowLeft, ArrowRight, Baby, Check, HeartPulse, LoaderCircle, MapPin, Search, Scale, ShieldCheck } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import MobileAppShell from '../components/MobileAppShell'
 import { useAuth } from '../context/AuthContext'
 import api from '../services/api'
+import { calculateEta } from '../utils/etaCalculator'
 
+/**
+ * Distance-Based Dynamic Fare Rates:
+ * 1. Standard Transport (STANDARD): Base ₹250 + ₹25/km
+ * 2. Maternity Support (PREGNANCY): Base ₹400 + ₹35/km
+ * 3. ICU / Advanced Life Support (ICU): Base ₹800 + ₹60/km
+ * 4. Bariatric / Custom (SPECIAL): Base ₹600 + ₹45/km
+ */
 const tiers = [
-  { name: 'Basic', tier: 'STANDARD', description: 'Comfortable transport for standard patient needs.', price: '₹150/km', icon: Ambulance, color: 'blue', features: ['Patient transport', 'Basic first-aid kit'] },
-  { name: 'Oxygen', tier: 'SPECIAL', description: 'Transport with oxygen support.', price: '₹200/km', icon: HeartPulse, color: 'purple', features: ['Oxygen support', 'Trained ambulance crew'] },
-  { name: 'ICU', tier: 'ICU', description: 'Critical care transport with advanced life support.', price: '₹300/km', icon: Scale, color: 'amber', features: ['Advanced life support', 'Critical care equipment'] },
-  { name: 'Pregnancy care', tier: 'PREGNANCY', description: 'Specialized transport for pregnancy-related needs.', price: '₹250/km', icon: Baby, color: 'pink', features: ['Pregnancy-trained crew', 'Hospital coordination'] },
+  {
+    name: 'Standard Transport',
+    tier: 'STANDARD',
+    description: 'Comfortable patient transport with essential first-aid kit.',
+    baseFare: 250,
+    perKmRate: 25,
+    icon: Ambulance,
+    color: 'blue',
+    features: ['Basic first-aid kit', 'Patient stretcher', 'Certified paramedic']
+  },
+  {
+    name: 'Maternity Support',
+    tier: 'PREGNANCY',
+    description: 'Specialized neonatal & maternal ambulance with hospital coordination.',
+    baseFare: 400,
+    perKmRate: 35,
+    icon: Baby,
+    color: 'pink',
+    features: ['Pregnancy-trained crew', 'Neonatal emergency kit', 'Priority hospital route']
+  },
+  {
+    name: 'ICU / Advanced Life Support',
+    tier: 'ICU',
+    description: 'Critical care transport with ventilator & advanced monitoring systems.',
+    baseFare: 800,
+    perKmRate: 60,
+    icon: Scale,
+    color: 'amber',
+    features: ['Ventilator & defibrillator', 'Critical care doctor onboard', 'Cardiac monitoring']
+  },
+  {
+    name: 'Bariatric / Custom Transport',
+    tier: 'SPECIAL',
+    description: 'Specialized bariatric ramp, oxygen manifold & heavy-duty transport.',
+    baseFare: 600,
+    perKmRate: 45,
+    icon: HeartPulse,
+    color: 'purple',
+    features: ['High-capacity ramp & lift', 'Continuous oxygen flow', 'Multi-paramedic team']
+  },
 ]
 
 const coordinatesLabel = point => `${Number(point.lat).toFixed(6)}, ${Number(point.lng).toFixed(6)}`
@@ -18,7 +62,7 @@ const coordinatesLabel = point => `${Number(point.lat).toFixed(6)}, ${Number(poi
 export default function BookingPage() {
   const [searchParams] = useSearchParams()
   const { currentLocation } = useAuth()
-  const [selected, setSelected] = useState(() => tiers.find(tier => tier.name.toLowerCase() === searchParams.get('care')?.toLowerCase())?.name || null)
+  const [selectedTier, setSelectedTier] = useState(() => tiers[0].tier)
   const [step, setStep] = useState(1)
   const [pickup, setPickup] = useState('')
   const [pickupCoords, setPickupCoords] = useState(null)
@@ -29,7 +73,6 @@ export default function BookingPage() {
   const [booking, setBooking] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [locationState, setLocationState] = useState('idle')
-  const locationRequest = useRef(false)
   const reverseLookupAttempted = useRef(false)
 
   const lookupAddress = useCallback(async point => {
@@ -37,7 +80,7 @@ export default function BookingPage() {
     reverseLookupAttempted.current = true
     try {
       const { data } = await api.get('/location/reverse', { params: { lat: point.lat, lng: point.lng } })
-      return data.data.address || null
+      return data?.data?.address || null
     } catch { return null }
   }, [])
 
@@ -64,18 +107,11 @@ export default function BookingPage() {
       applyPickup(currentLocation)
       return
     }
-    if (typeof window !== 'undefined' && sessionStorage.getItem('emstrap_corelocation_unavailable') === 'true') {
-      return
-    }
     setLocationState('locating')
-    if (!window.isSecureContext) { setLocationState('insecure-context'); return }
     if (!navigator.geolocation) { setLocationState('unsupported'); return }
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => applyPickup({ lat: coords.latitude, lng: coords.longitude }),
-      async (error) => {
-        if (error.code === 2) {
-          try { sessionStorage.setItem('emstrap_corelocation_unavailable', 'true') } catch (_) {}
-        }
+      async () => {
         try {
           const res = await fetch('https://ipwho.is/', { signal: AbortSignal.timeout(3000) })
           if (res.ok) {
@@ -86,79 +122,248 @@ export default function BookingPage() {
             }
           }
         } catch (_) {}
-        if (error.code === 1) setLocationState('permission')
-        else if (error.code === 3) setLocationState('timeout')
-        else setLocationState('unavailable')
+        setLocationState('approximate')
       },
-      { enableHighAccuracy: false, maximumAge: 60000, timeout: 5000 },
+      { enableHighAccuracy: false, maximumAge: 30000, timeout: 6000 }
     )
   }, [currentLocation, applyPickup])
 
   useEffect(() => {
-    if (step !== 2 || locationRequest.current) return
-    locationRequest.current = true
-    if (currentLocation && Number.isFinite(Number(currentLocation.lat)) && Number.isFinite(Number(currentLocation.lng))) applyPickup(currentLocation)
-    else locatePickup()
-  }, [step, currentLocation, applyPickup, locatePickup])
+    locatePickup()
+  }, [locatePickup])
 
-  const retryLocation = () => { locationRequest.current = true; locatePickup() }
+  // Calculate live route distance and travel time between pickup and drop-off
+  const routeCalculation = useMemo(() => {
+    if (!pickupCoords || !destinationCoords) return null
+    return calculateEta(pickupCoords, destinationCoords, 35) // ambulance average travel speed 35 km/h
+  }, [pickupCoords, destinationCoords])
 
-  async function searchDestination() {
-    if (destination.trim().length < 3) return toast.error('Enter at least 3 characters for the drop-off')
+  const distanceKm = routeCalculation?.distanceKm || 2.0
+  const travelMinutes = routeCalculation?.minutes || 5
+
+  const searchDestination = async () => {
+    if (!destination.trim() || destination.trim().length < 3) return
     setSearchingDestination(true)
     try {
-      const { data } = await api.get('/location/search', { params: { q: destination.trim() } })
-      setDestinationResults(data.data || [])
-      if (!data.data?.length) toast.error('No matching drop-off address found')
-    } catch (error) { toast.error(error.response?.data?.message || 'Could not find that drop-off address') }
-    finally { setSearchingDestination(false) }
+      const { data } = await api.get('/location/search', { params: { query: destination.trim() } })
+      setDestinationResults(data?.data?.results || [])
+      if (!data?.data?.results?.length) toast('No matching hospitals or landmarks found. Try another search term.')
+    } catch {
+      toast.error('Unable to search destinations right now.')
+    } finally {
+      setSearchingDestination(false)
+    }
   }
 
-  async function requestAmbulance() {
-    if (!selected || !pickupCoords || !destinationCoords) return toast.error('Choose a service, confirm your live pickup, and select a drop-off result')
+  const requestAmbulance = async () => {
+    if (!pickupCoords || !destinationCoords) return toast.error('Choose both pickup and drop-off locations.')
+    const chosenTierObj = tiers.find(t => t.tier === selectedTier) || tiers[0]
+    const calculatedPrice = Math.round(chosenTierObj.baseFare + (distanceKm * chosenTierObj.perKmRate))
+
     setSubmitting(true)
     try {
-      const tier = tiers.find(item => item.name === selected)
       const { data } = await api.post('/bookings', {
-        tier: tier.tier,
+        tier: chosenTierObj.tier,
         pickup,
         pickupLocation: pickupCoords,
         destination,
         destinationLocation: destinationCoords,
+        distanceKm,
+        estimatedFare: calculatedPrice
       })
       setBooking(data.data.booking)
-      toast.success('Booking sent to available government and private drivers')
-    } catch (error) { toast.error(error.response?.data?.message || 'Could not submit the ambulance booking') }
-    finally { setSubmitting(false) }
+      toast.success('Ambulance requested! Available private operators notified.')
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Unable to book ambulance right now.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
-  const locationMessage = {
-    locating: 'Finding your live GPS address…', ready: 'Pickup address detected from your GPS location.',
-    coordinates: 'GPS is ready; using coordinates because address lookup did not return an address.',
-    'insecure-context': 'Android Chrome blocks GPS on this HTTP address. Open the site over HTTPS or localhost and allow location access.',
-    unsupported: 'This browser does not support GPS.', permission: 'Allow location access in Android Chrome settings, then retry.',
-    timeout: 'GPS timed out. Turn on Location on your phone and retry.', unavailable: 'Could not get a GPS fix. Turn on Location and allow access, then retry.',
-  }[locationState]
+  return (
+    <MobileAppShell>
+      <div className="flex items-center gap-3">
+        <Link to="/app" className="grid h-10 w-10 place-items-center rounded-full border border-slate-300 bg-white shadow-sm">
+          <ArrowLeft size={18} />
+        </Link>
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[.18em] text-blue-700">Non-emergency transport</p>
+          <h1 className="font-display text-2xl font-bold tracking-tight">Book an ambulance</h1>
+        </div>
+      </div>
 
-  return <MobileAppShell>
-    <Link to="/app" className="mb-6 inline-flex items-center gap-2 text-sm font-semibold text-slate-600"><ArrowLeft size={16} /> Back to home</Link>
-    <p className="text-xs font-bold uppercase tracking-[.18em] text-red-600">Private ambulance booking</p>
-    <h1 className="mt-1 font-display text-3xl font-bold tracking-tight">Plan your journey</h1>
-    <p className="mt-2 text-sm leading-5 text-slate-500">Choose the right level of care for a safe trip.</p>
-    <div className="mt-5 flex items-center gap-2 text-[11px] font-bold"><span className="rounded-full bg-slate-950 px-3 py-2 text-white">01 Select care</span><span className="h-px flex-1 bg-slate-200" /><span className={`rounded-full px-3 py-2 ${step === 2 ? 'bg-slate-950 text-white' : 'bg-slate-200 text-slate-500'}`}>02 Trip details</span></div>
-    {booking ? <section className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-5"><p className="text-xs font-bold uppercase tracking-wider text-emerald-700">Request sent</p><h2 className="mt-2 font-display text-xl font-bold">Your ambulance booking is saved</h2><p className="mt-2 text-sm text-emerald-900">You can follow driver assignment and ambulance location from your Activity page.</p><p className="mt-3 text-xs text-emerald-800">Booking {String(booking._id).slice(-8)} · {booking.status}</p><Link to="/app/activity" className="mt-4 inline-flex rounded-xl bg-emerald-800 px-4 py-3 text-sm font-bold text-white">Track this booking</Link></section> : step === 1 ? <>
-      <div className="mt-5 space-y-3">{tiers.map(({ name, description, price, icon: Icon, color, features }) => <button key={name} onClick={() => setSelected(name)} className={`mobile-booking-tier ${selected === name ? 'selected' : ''} tier-${color}`}><div className="flex items-start justify-between"><span className="grid h-10 w-10 place-items-center rounded-xl bg-white/80"><Icon size={20} /></span>{selected === name && <span className="grid h-6 w-6 place-items-center rounded-full bg-slate-950 text-white"><Check size={14} /></span>}</div><h2 className="mt-4 text-left font-display text-lg font-bold">{name}</h2><p className="mt-1 text-left text-xs leading-5 opacity-75">{description}</p><div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-left text-[11px] font-medium opacity-80">{features.map(feature => <span key={feature} className="flex items-center gap-1"><ShieldCheck size={12} /> {feature}</span>)}</div><p className="mt-4 text-left text-sm font-bold">{price}</p></button>)}</div>
-      <button disabled={!selected} onClick={() => setStep(2)} className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 py-3.5 text-sm font-bold text-white disabled:opacity-40">Continue <ArrowRight size={17} /></button>
-    </> : <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4">
-      <div className="mb-5 flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-red-100 text-red-600"><ShieldCheck size={20} /></span><div><p className="text-xs text-slate-500">Selected service · {tiers.find(tier => tier.name === selected)?.price}</p><h2 className="font-bold">{selected}</h2></div></div>
-      <p className="-mt-3 mb-4 text-xs text-slate-500">Fare is charged per kilometre based on the trip distance.</p>
-      <label className="block text-sm font-semibold">Pickup location<input value={pickup} onChange={event => { setPickup(event.target.value); setPickupCoords(null) }} placeholder="Finding your current location…" className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-red-500" /></label>
-      <div className="mt-2 flex items-start gap-2 text-xs text-slate-500"><span className="flex-1">{locationMessage || 'Your pickup point will be detected when you continue.'}{pickupCoords && <span className="block">GPS: {pickupCoords.lat.toFixed(5)}, {pickupCoords.lng.toFixed(5)}</span>}</span><button type="button" onClick={retryLocation} className="shrink-0 font-bold text-red-600">Use my location</button></div>
-      <label className="mt-4 block text-sm font-semibold">Drop-off location<input value={destination} onChange={event => { setDestination(event.target.value); setDestinationCoords(null); setDestinationResults([]) }} placeholder="Hospital or destination" className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-red-500" /></label>
-      <button type="button" disabled={searchingDestination || destination.trim().length < 3} onClick={searchDestination} className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 py-2.5 text-xs font-bold text-slate-700 disabled:opacity-50">{searchingDestination ? <LoaderCircle className="animate-spin" size={15} /> : <Search size={15} />} Find drop-off on map</button>
-      {destinationResults.length > 0 && <div className="mt-2 max-h-48 space-y-2 overflow-y-auto">{destinationResults.map(result => <button key={`${result.lat}-${result.lng}`} type="button" onClick={() => { setDestination(result.displayName); setDestinationCoords({ lat: Number(result.lat), lng: Number(result.lng), source: 'user-selected' }); setDestinationResults([]) }} className="flex w-full items-start gap-2 rounded-xl bg-slate-50 p-3 text-left text-xs leading-5 hover:bg-red-50"><MapPin size={15} className="mt-0.5 shrink-0 text-red-600" />{result.displayName}</button>)}</div>}
-      {destinationCoords && <p className="mt-2 text-xs font-medium text-emerald-700">Drop-off map location selected · {destinationCoords.lat.toFixed(5)}, {destinationCoords.lng.toFixed(5)}</p>}
-      <div className="mt-5 flex gap-2"><button onClick={() => setStep(1)} className="flex-1 rounded-xl border border-slate-300 bg-white py-3 text-sm font-bold">Back</button><button disabled={!pickupCoords || !destinationCoords || submitting} onClick={requestAmbulance} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-red-600 py-3 text-sm font-bold text-white disabled:opacity-50">{submitting ? 'Sending…' : 'Request ambulance'}</button></div>
-    </div>}
-  </MobileAppShell>
+      {booking ? (
+        <section className="mt-7 rounded-3xl border border-emerald-200 bg-emerald-50 p-6 text-center">
+          <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-emerald-600 text-white shadow-lg">
+            <Check size={28} />
+          </div>
+          <h2 className="mt-4 font-display text-2xl font-bold text-emerald-950">Ambulance Confirmed!</h2>
+          <p className="mt-2 text-xs leading-5 text-emerald-900">
+            Your booking request has been dispatched to private drivers. Track live GPS movement and arrival time in the Activity tab.
+          </p>
+          <div className="mt-4 rounded-2xl bg-white p-4 text-left border border-emerald-200 text-xs text-slate-700 space-y-1">
+            <p><b>Booking ID:</b> #{String(booking._id).slice(-8)}</p>
+            <p><b>Service Tier:</b> {booking.tier}</p>
+            <p><b>Trip Distance:</b> {distanceKm} km</p>
+            <p className="text-emerald-700 font-bold text-sm mt-1">Total Fare: ₹{booking.price || booking.estimatedFare}</p>
+          </div>
+          <Link to="/app/activity" className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 py-3.5 text-sm font-bold text-white shadow">
+            Track this booking in Activity <ArrowRight size={16} />
+          </Link>
+        </section>
+      ) : step === 1 ? (
+        /* Step 1: Destination Selection & Live Distance Calculator */
+        <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+          <div className="flex items-center gap-2.5">
+            <span className="grid h-8 w-8 place-items-center rounded-xl bg-blue-100 text-blue-700 font-bold text-xs">1</span>
+            <h2 className="font-display text-base font-bold text-slate-900">Choose Pickup & Destination</h2>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">
+              Pickup Location
+            </label>
+            <div className="relative">
+              <input
+                value={pickup}
+                onChange={e => { setPickup(e.target.value); setPickupCoords(null) }}
+                placeholder="Detecting your location…"
+                className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-xs outline-none focus:border-blue-500"
+              />
+            </div>
+            {pickupCoords && (
+              <p className="mt-1 text-[11px] text-emerald-700 font-medium flex items-center gap-1">
+                <Check size={12} /> GPS: {pickupCoords.lat.toFixed(5)}, {pickupCoords.lng.toFixed(5)}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">
+              Drop-off Destination / Hospital
+            </label>
+            <div className="flex gap-2">
+              <input
+                value={destination}
+                onChange={e => { setDestination(e.target.value); setDestinationCoords(null); setDestinationResults([]) }}
+                placeholder="Search hospital or landmark (e.g. Apollo Hospital)"
+                className="flex-1 rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-xs outline-none focus:border-blue-500"
+              />
+              <button
+                type="button"
+                disabled={searchingDestination || destination.trim().length < 3}
+                onClick={searchDestination}
+                className="flex items-center justify-center gap-1.5 rounded-xl bg-slate-900 px-4 text-xs font-bold text-white hover:bg-slate-800 disabled:opacity-50"
+              >
+                {searchingDestination ? <LoaderCircle className="animate-spin" size={15} /> : <Search size={15} />}
+                Search
+              </button>
+            </div>
+
+            {destinationResults.length > 0 && (
+              <div className="mt-2 max-h-44 space-y-1.5 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-2">
+                {destinationResults.map((result, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setDestination(result.displayName)
+                      setDestinationCoords({ lat: Number(result.lat), lng: Number(result.lng), source: 'user-selected' })
+                      setDestinationResults([])
+                    }}
+                    className="flex w-full items-start gap-2 rounded-lg bg-white p-2.5 text-left text-xs text-slate-800 shadow-sm hover:bg-blue-50"
+                  >
+                    <MapPin size={14} className="mt-0.5 shrink-0 text-red-600" />
+                    <span className="truncate">{result.displayName}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {destinationCoords && (
+              <div className="mt-3 rounded-xl bg-blue-50 p-3 border border-blue-200 text-xs text-blue-900 flex items-center justify-between">
+                <div>
+                  <p className="font-bold">Route Calculated</p>
+                  <p className="text-[11px] text-blue-700">{distanceKm} km • ~{travelMinutes} mins travel time</p>
+                </div>
+                <span className="rounded-lg bg-blue-600 px-2.5 py-1 text-[11px] font-black text-white">
+                  {distanceKm} km
+                </span>
+              </div>
+            )}
+          </div>
+
+          <button
+            disabled={!pickupCoords || !destinationCoords}
+            onClick={() => setStep(2)}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 py-3.5 text-sm font-bold text-white disabled:opacity-40"
+          >
+            Select Ambulance Tier <ArrowRight size={17} />
+          </button>
+        </div>
+      ) : (
+        /* Step 2: Dynamic Per-KM Pricing Ambulance Options */
+        <div className="mt-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <button onClick={() => setStep(1)} className="text-xs font-bold text-slate-600 flex items-center gap-1 hover:text-slate-900">
+              <ArrowLeft size={14} /> Back to Route
+            </button>
+            <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200">
+              Distance: {distanceKm} km (~{travelMinutes}m)
+            </span>
+          </div>
+
+          <div className="space-y-3">
+            {tiers.map(t => {
+              const Icon = t.icon
+              const isSelected = selectedTier === t.tier
+              const dynamicPrice = Math.round(t.baseFare + (distanceKm * t.perKmRate))
+
+              return (
+                <button
+                  key={t.tier}
+                  onClick={() => setSelectedTier(t.tier)}
+                  className={`w-full rounded-2xl border-2 p-4 text-left transition ${isSelected ? 'border-slate-950 bg-white shadow-md' : 'border-slate-200 bg-white/70 hover:border-slate-300'}`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="grid h-11 w-11 place-items-center rounded-xl bg-slate-100 text-slate-800">
+                        <Icon size={22} />
+                      </span>
+                      <div>
+                        <h3 className="font-display text-base font-bold text-slate-900">{t.name}</h3>
+                        <p className="text-[11px] text-slate-500 mt-0.5">Base ₹{t.baseFare} + ₹{t.perKmRate}/km</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-display text-lg font-black text-slate-950">₹{dynamicPrice}</p>
+                      <p className="text-[10px] text-slate-400">Fixed trip fare</p>
+                    </div>
+                  </div>
+
+                  <p className="mt-2 text-xs text-slate-600 leading-relaxed">{t.description}</p>
+
+                  <div className="mt-3 flex flex-wrap gap-2 text-[10px] text-slate-600 font-medium">
+                    {t.features.map((feat, idx) => (
+                      <span key={idx} className="rounded-md bg-slate-100 px-2 py-0.5 flex items-center gap-1">
+                        <ShieldCheck size={11} className="text-emerald-600" /> {feat}
+                      </span>
+                    ))}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+
+          <button
+            disabled={submitting}
+            onClick={requestAmbulance}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 py-3.5 text-sm font-bold text-white shadow-lg shadow-red-600/30 hover:bg-red-500 disabled:opacity-50"
+          >
+            {submitting ? 'Dispatching…' : 'Request Ambulance Now'}
+          </button>
+        </div>
+      )}
+    </MobileAppShell>
+  )
 }

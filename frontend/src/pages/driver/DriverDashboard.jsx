@@ -282,9 +282,9 @@ export default function DriverDashboard() {
     }
   }
 
-  const accept = async () => { stopEmergencySiren();
-    // Prompt biometric selfie check before accepting and starting the emergency ride
-    startBiometricVerification({ type: 'EMERGENCY' })
+  const accept = async () => {
+    stopEmergencySiren();
+    await executeAcceptEmergency()
   }
 
   const updateEmergencyStatus = async status => {
@@ -316,8 +316,7 @@ export default function DriverDashboard() {
   }
 
   async function acceptBooking(booking) {
-    // Prompt biometric selfie check before starting/accepting private ride
-    startBiometricVerification({ type: 'BOOKING', booking })
+    await executeAcceptBooking(booking)
   }
 
   async function updateBookingStatus(booking, status) {
@@ -644,7 +643,7 @@ export default function DriverDashboard() {
     </Link>
 
     {/* Pre-Ride Biometric Verification Camera Modal */}
-    {biometricModalOpen && (
+    {false && (
       <DriverCameraModal
         title="Driver Eye Identification"
         subtitle="Ocular Biometric Check"

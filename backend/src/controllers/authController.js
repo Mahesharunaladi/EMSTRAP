@@ -12,7 +12,7 @@ const hashCode = value => crypto.createHmac('sha256', process.env.JWT_SECRET).up
 const createCode = () => String(crypto.randomInt(100000, 1000000))
 
 function issueSession(res, user) {
-  const token = jwt.sign({ sub: user._id.toString(), role: user.role, ver: user.sessionVersion || 0 }, process.env.JWT_SECRET, { expiresIn: '30d' })
+  const token = jwt.sign({ sub: user._id.toString(), role: user.role, ver: user.sessionVersion || 0 }, process.env.JWT_SECRET, { expiresIn: '365d' })
   const isProd = process.env.NODE_ENV === 'production'
   res.cookie('token', token, { httpOnly: true, secure: isProd, sameSite: isProd ? 'none' : 'lax', maxAge: COOKIE_MAX_AGE, path: '/' })
   return token

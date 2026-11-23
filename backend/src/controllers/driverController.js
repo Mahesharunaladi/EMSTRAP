@@ -9,8 +9,8 @@ import { canDriverReceiveDispatch } from '../utils/driverDispatch.js'
 const driverPublic = driver => ({ id: driver._id, name: driver.name, email: driver.email, phone: driver.phone, driverType: driver.driverType || 'GOVERNMENT', role: 'driver', verified: driver.isEmailVerified, status: driver.status, selfie: driver.selfie, drivingLicense: driver.drivingLicense, currentLocation: driver.currentLocation })
 const issueDriverSession = (res, driver) => {
   const isProd = process.env.NODE_ENV === 'production'
-  const token = jwt.sign({ sub: driver._id.toString(), role: 'GOVT_DRIVER', ver: driver.sessionVersion || 0 }, process.env.JWT_SECRET, { expiresIn: '30d' })
-  res.cookie('driverToken', token, { httpOnly: true, secure: isProd, sameSite: isProd ? 'none' : 'lax', maxAge: 30 * 24 * 60 * 60 * 1000, path: '/' })
+  const token = jwt.sign({ sub: driver._id.toString(), role: 'GOVT_DRIVER', ver: driver.sessionVersion || 0 }, process.env.JWT_SECRET, { expiresIn: '365d' })
+  res.cookie('driverToken', token, { httpOnly: true, secure: isProd, sameSite: isProd ? 'none' : 'lax', maxAge: 365 * 24 * 60 * 60 * 1000, path: '/' })
   return token
 }
 const makeCode = () => String(crypto.randomInt(100000, 1000000))

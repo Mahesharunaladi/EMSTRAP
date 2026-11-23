@@ -1,18 +1,15 @@
 /**
  * Dual-Layer Persistent Storage Adapter
  * Safely persists authentication session and user profiles across Android WebView reboots.
- * Layer 1: @capacitor/preferences (Native SharedPreferences - never wiped by Android WebView)
- * Layer 2: localStorage (standard browser persistent storage)
+ * Checks for global window.Capacitor?.Plugins?.Preferences, Android SharedPreferences via window.AndroidPrefs, and localStorage.
  */
 
-let PreferencesPlugin = null
-
-// Dynamically check if @capacitor/preferences is available
-try {
-  import('@capacitor/preferences').then(mod => {
-    PreferencesPlugin = mod.Preferences
-  }).catch(() => {})
-} catch (_) {}
+const getCapacitorPreferences = () => {
+  if (typeof window !== 'undefined' && window.Capacitor?.Plugins?.Preferences) {
+    return window.Capacitor.Plugins.Preferences
+  }
+  return null
+}
 
 export async function setItem(key, value) {
   const strValue = typeof value === 'string' ? value : JSON.stringify(value)
@@ -20,17 +17,19 @@ export async function setItem(key, value) {
     localStorage.setItem(key, strValue)
   } catch (_) {}
 
-  if (PreferencesPlugin) {
+  const prefs = getCapacitorPreferences()
+  if (prefs) {
     try {
-      await PreferencesPlugin.set({ key, value: strValue })
+      await prefs.set({ key, value: strValue })
     } catch (_) {}
   }
 }
 
 export async function getItem(key) {
-  if (PreferencesPlugin) {
+  const prefs = getCapacitorPreferences()
+  if (prefs) {
     try {
-      const { value } = await PreferencesPlugin.get({ key })
+      const { value } = await prefs.get({ key })
       if (value !== null && value !== undefined) return value
     } catch (_) {}
   }
@@ -48,9 +47,10 @@ export async function removeItem(key) {
     localStorage.removeItem(key)
   } catch (_) {}
 
-  if (PreferencesPlugin) {
+  const prefs = getCapacitorPreferences()
+  if (prefs) {
     try {
-      await PreferencesPlugin.remove({ key })
+      await prefs.remove({ key })
     } catch (_) {}
   }
 }

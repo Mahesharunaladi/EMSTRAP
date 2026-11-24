@@ -22,6 +22,8 @@ export function isAllowedOrigin(origin) {
     const hostname = url.hostname
     if (hostname === 'localhost' || hostname === '127.0.0.1') return true
     if (hostname.endsWith('.onrender.com')) return true
+    if (hostname.endsWith('.vercel.app')) return true
+    if (hostname.endsWith('.netlify.app')) return true
     if (hostname.startsWith('10.') || hostname.startsWith('192.168.')) return true
     if (/^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostname)) return true
   } catch {

@@ -10,7 +10,10 @@ let activeBookingAudio = null
 export function playEmergencySiren(loop = true) {
   try {
     if (!activeEmergencyAudio) {
-      activeEmergencyAudio = new Audio('/sounds/emergency-siren.mp3')
+      activeEmergencyAudio = new Audio('/sounds/emergency-alert.mp3')
+      activeEmergencyAudio.onerror = () => {
+        activeEmergencyAudio.src = '/sounds/emergency-siren.mp3'
+      }
     }
     activeEmergencyAudio.loop = loop
     activeEmergencyAudio.currentTime = 0
@@ -37,7 +40,10 @@ export function stopEmergencySiren() {
 export function playBookingChime() {
   try {
     if (!activeBookingAudio) {
-      activeBookingAudio = new Audio('/sounds/booking-chime.mp3')
+      activeBookingAudio = new Audio('/sounds/private-driver-alert.mp3')
+      activeBookingAudio.onerror = () => {
+        activeBookingAudio.src = '/sounds/booking-chime.mp3'
+      }
     }
     activeBookingAudio.loop = false
     activeBookingAudio.currentTime = 0

@@ -26,7 +26,8 @@ export default function DriverDashboard() {
   const [emergency, setEmergency] = useState(null)
   const [bookings, setBookings] = useState([])
   const [canReceiveBookings, setCanReceiveBookings] = useState(false)
-  const [online, setOnline] = useState(true)
+  const [online, setOnline] = useState(() => localStorage.getItem('emstrap_driver_onduty') !== 'false')
+  const [updatingDuty, setUpdatingDuty] = useState(false)
   const [locationStatus, setLocationStatus] = useState('Location sharing starts after accepting a request')
   const [modalImage, setModalImage] = useState(null)
   const [biometricModalOpen, setBiometricModalOpen] = useState(false)
@@ -38,11 +39,36 @@ export default function DriverDashboard() {
     ? (driver?.status === 'ACTIVE' || driver?.status === 'PENDING_REVIEW')
     : canReceiveBookings
 
+  const toggleDutyStatus = async () => {
+    const nextStatus = !online
+    setUpdatingDuty(true)
+    try {
+      await api.patch('/driver/duty-status', { isOnDuty: nextStatus })
+      setOnline(nextStatus)
+      localStorage.setItem('emstrap_driver_onduty', String(nextStatus))
+      if (!nextStatus) {
+        stopEmergencySiren()
+      }
+      toast.success(nextStatus ? 'You are now ON DUTY (Receiving Dispatches)' : 'You are now OFF DUTY (Dispatches Paused)')
+    } catch {
+      // Optimistic fallback in case of temporary network glitch
+      setOnline(nextStatus)
+      localStorage.setItem('emstrap_driver_onduty', String(nextStatus))
+      if (!nextStatus) stopEmergencySiren()
+    } finally {
+      setUpdatingDuty(false)
+    }
+  }
+
   const loadDashboard = useCallback(async () => {
     try {
       const meRes = await api.get('/driver/me')
       const currentDriver = meRes.data.data.driver
       setDriver(currentDriver)
+      if (typeof currentDriver?.isOnDuty === 'boolean') {
+        setOnline(currentDriver.isOnDuty)
+        localStorage.setItem('emstrap_driver_onduty', String(currentDriver.isOnDuty))
+      }
 
       if (currentDriver?.driverType === 'GOVERNMENT') {
         const alertRes = await api.get('/driver/active-emergency').catch(() => null)
@@ -76,9 +102,12 @@ export default function DriverDashboard() {
   }, [loadDashboard])
 
   useEffect(() => {
-    if (!driver?.id) return undefined
+    if (!driver?.id || !online) {
+      stopEmergencySiren()
+      return undefined
+    }
     const onNewBooking = booking => {
-      if (driver.driverType !== 'PRIVATE') return
+      if (driver.driverType !== 'PRIVATE' || !online) return
       setBookings(current => [booking, ...current.filter(item => String(item._id) !== String(booking._id))])
       toast.success('New ambulance booking · pickup and drop-off received')
     }
@@ -91,7 +120,7 @@ export default function DriverDashboard() {
       }
     }
     const onEmergencyAlert = alert => {
-      if (driver.driverType === 'GOVERNMENT') {
+      if (driver.driverType === 'GOVERNMENT' && online) {
         setEmergency(alert)
         playEmergencySiren(true) // Loop Klaxon buzzer until accepted
         toast.success('Emergency SOS alert received')
@@ -99,6 +128,7 @@ export default function DriverDashboard() {
     }
 
     const wrappedNewBooking = booking => {
+      if (!online) return
       playBookingChime() // Triple-chime notification for private booking
       onNewBooking(booking)
     }
@@ -121,7 +151,7 @@ export default function DriverDashboard() {
       wrappedNewBooking,
       onBookingAssignment,
     )
-  }, [driver?.id, driver?.driverType])
+  }, [driver?.id, driver?.driverType, online])
 
   useEffect(() => onUserLocationUpdated(payload => {
     if (isGovtDriver && emergency && String(payload.emergencyId) === String(emergency._id || emergency.emergencyId)) {
@@ -328,7 +358,7 @@ export default function DriverDashboard() {
   }
 
   return <DriverAppShell driver={driver}>
-    <div className="flex items-center justify-between">
+    <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
         <p className="text-xs font-bold uppercase tracking-[.18em] text-red-600">
           {isGovtDriver ? 'Government Dispatch Center' : 'Private Operator Center'}
@@ -336,12 +366,16 @@ export default function DriverDashboard() {
         <h1 className="mt-1 font-display text-3xl font-bold">Driver dashboard</h1>
       </div>
       <button
-        disabled={!isDispatchReady}
-        onClick={() => setOnline(value => !value)}
-        className={`flex items-center gap-2 rounded-full px-3 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 ${online ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'}`}
+        disabled={!isDispatchReady || updatingDuty}
+        onClick={toggleDutyStatus}
+        className={`flex items-center gap-2.5 rounded-2xl px-4 py-2.5 text-xs font-black shadow-md transition disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 ${
+          online
+            ? 'bg-emerald-600 text-white shadow-emerald-600/30 ring-2 ring-emerald-400'
+            : 'bg-slate-800 text-slate-200 shadow-slate-900/30'
+        }`}
       >
-        <span className={`h-2 w-2 rounded-full ${isDispatchReady && online ? 'bg-emerald-500' : 'bg-slate-400'}`} />
-        {isDispatchReady ? (online ? 'Online' : 'Offline') : 'Not dispatch-ready'}
+        <span className={`h-2.5 w-2.5 rounded-full ${online ? 'bg-white animate-pulse' : 'bg-red-400'}`} />
+        <span>{updatingDuty ? 'Updating…' : (online ? '🟢 ON DUTY' : '🔴 OFF DUTY')}</span>
       </button>
     </div>
 

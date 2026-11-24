@@ -33,6 +33,9 @@ export default function BookedAmbulanceCard({ booking }) {
     ? calculateEta(driverLocation, pickupLocation, 35) // private ambulance pickup ETA (~35 km/h)
     : null
 
+  const isEmergency = booking.isEmergency || booking.tier === 'EMERGENCY' || booking.tier === 'GOVERNMENT' || booking.ambulanceType === 'Emergency' || (!booking.tier && !booking.totalFare && !booking.price)
+  const isFree = isEmergency || booking.price === 0 || booking.totalFare === 0
+
   return <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
     <div className="flex items-start justify-between gap-3">
       <div>
@@ -45,12 +48,23 @@ export default function BookedAmbulanceCard({ booking }) {
           </span>
         </div>
         <h3 className="mt-1 font-display text-base font-bold text-slate-900">
-          {booking.ambulanceType ? `${booking.ambulanceType} Ambulance` : 'Emergency Ambulance'}
+          {booking.ambulanceType ? `${booking.ambulanceType} Ambulance` : (isEmergency ? 'Govt Emergency Ambulance' : 'Private Ambulance')}
         </h3>
       </div>
       <div className="text-right">
-        <p className="font-display text-base font-bold text-slate-900">{formatMoney(booking.totalFare || booking.estimatedFare)}</p>
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Fixed rate</p>
+        {isFree ? (
+          <>
+            <p className="font-display text-base font-black text-emerald-600">₹0</p>
+            <span className="inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-emerald-800">
+              FREE • GOVT EMERGENCY
+            </span>
+          </>
+        ) : (
+          <>
+            <p className="font-display text-base font-bold text-slate-900">{formatMoney(booking.totalFare || booking.estimatedFare || booking.price)}</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Distance rate</p>
+          </>
+        )}
       </div>
     </div>
 

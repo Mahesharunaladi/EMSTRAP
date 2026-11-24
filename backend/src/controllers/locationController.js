@@ -67,30 +67,36 @@ export async function reverseGeocode(req, res, next) {
 
 export async function searchAddress(req, res, next) {
   try {
-    const query = req.query.q?.trim()
-    if (!query || query.length < 3 || query.length > 200) return res.status(400).json({ success: false, message: 'Enter 3 to 200 characters to search', data: null })
+    const rawQuery = req.query.q || req.query.query || req.query.address || ''
+    const query = typeof rawQuery === 'string' ? rawQuery.trim() : ''
+    if (!query || query.length < 2 || query.length > 200) {
+      return res.status(200).json({ success: true, message: 'Address results', data: [] })
+    }
 
     // 1. Try Nominatim with contact email
     try {
-      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&addressdetails=1&q=${encodeURIComponent(query)}`, {
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=8&addressdetails=1&q=${encodeURIComponent(query)}`, {
         headers: { 'User-Agent': 'EmSTraP/1.0 (emstrapcontacts@gmail.com)', 'Accept-Language': 'en' },
         signal: AbortSignal.timeout(4000)
       })
       if (response.ok) {
         const results = await response.json()
         if (Array.isArray(results) && results.length > 0) {
-          return res.json({
-            success: true,
-            message: 'Address results',
-            data: results.map(result => ({ displayName: result.display_name, lat: Number(result.lat), lng: Number(result.lon) }))
-          })
+          const mapped = results.map(result => ({
+            displayName: result.display_name,
+            lat: Number(result.lat),
+            lng: Number(result.lon)
+          })).filter(r => Number.isFinite(r.lat) && Number.isFinite(r.lng))
+          if (mapped.length > 0) {
+            return res.json({ success: true, message: 'Address results', data: mapped })
+          }
         }
       }
     } catch (_) {}
 
     // 2. Fallback to Photon API
     try {
-      const pRes = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5`, {
+      const pRes = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=8`, {
         headers: { 'User-Agent': 'EmSTraP/1.0' },
         signal: AbortSignal.timeout(4000)
       })
@@ -106,13 +112,15 @@ export async function searchAddress(req, res, next) {
               lat: Number(f.geometry.coordinates[1]),
               lng: Number(f.geometry.coordinates[0])
             }
-          })
-          return res.json({ success: true, message: 'Address results', data: results })
+          }).filter(r => Number.isFinite(r.lat) && Number.isFinite(r.lng))
+          if (results.length > 0) {
+            return res.json({ success: true, message: 'Address results', data: results })
+          }
         }
       }
     } catch (_) {}
 
-    // Graceful response: return empty list rather than 502
+    // Graceful response: return empty list rather than 502 or 400
     res.json({ success: true, message: 'Address results', data: [] })
   } catch (error) { next(error) }
 }

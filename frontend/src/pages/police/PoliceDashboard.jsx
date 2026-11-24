@@ -29,8 +29,16 @@ export default function PoliceDashboard() {
   const [modalImage, setModalImage] = useState(null)
   const [alarmActive, setAlarmActive] = useState(false)
 
-  // Hardcoded Police Login state (for standalone web app & shared session)
+  // Police Mobile App opens directly into Command Dashboard with NO login required!
+  // In browser/standalone environments, check persistent session.
+  const isMobileApp = typeof window !== 'undefined' && (
+    (typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.includes('EmSTraP-App')) ||
+    window.location.protocol === 'capacitor:' ||
+    window.location.hostname === 'localhost' && window.location.pathname.startsWith('/police')
+  )
+
   const [authenticated, setAuthenticated] = useState(() => {
+    if (isMobileApp) return true
     return localStorage.getItem('emstrap_police_session') === 'true' ||
            sessionStorage.getItem('emstrap_police_session') === 'true'
   })
@@ -42,7 +50,7 @@ export default function PoliceDashboard() {
     e.preventDefault()
     const emailNorm = loginEmail.trim().toLowerCase()
     if (
-      (emailNorm === 'police.hq@emstrap.gov.in' || emailNorm === 'police01' || emailNorm === 'police') &&
+      (emailNorm === 'police.hq@emstrap.gov.in' || emailNorm === 'police01' || emailNorm === 'police' || emailNorm === 'yelahanka.ps@emstrap.gov.in') &&
       loginPassword === 'Police@123'
     ) {
       localStorage.setItem('emstrap_police_session', 'true')

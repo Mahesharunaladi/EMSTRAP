@@ -42,7 +42,7 @@ export default function PoliceDashboard() {
     e.preventDefault()
     const emailNorm = loginEmail.trim().toLowerCase()
     if (
-      (emailNorm === 'police.hq@emstrap.gov.in' || emailNorm === 'police01' || emailNorm === 'police') &&
+      (emailNorm === 'police.hq@emstrap.gov.in' || emailNorm === 'police01' || emailNorm === 'police' || emailNorm === 'yelahanka.ps@emstrap.gov.in') &&
       loginPassword === 'Police@123'
     ) {
       localStorage.setItem('emstrap_police_session', 'true')
@@ -56,6 +56,12 @@ export default function PoliceDashboard() {
     } else {
       setLoginError('Invalid police credentials. Use police.hq@emstrap.gov.in / Police@123')
     }
+  }
+
+  const fillDemoCredentials = (email = 'police.hq@emstrap.gov.in') => {
+    setLoginEmail(email)
+    setLoginPassword('Police@123')
+    toast.success(`Filled credentials for ${email}`)
   }
 
   const handlePoliceLogout = () => {
@@ -190,8 +196,24 @@ export default function PoliceDashboard() {
 
             <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 p-3 text-[11px] text-blue-300">
               <span className="font-bold">Demo Police Credentials:</span>
-              <p className="mt-0.5 font-mono text-slate-300">Badge/Email: <strong className="text-white">police.hq@emstrap.gov.in</strong> (or <strong className="text-white">police01</strong>)</p>
+              <p className="mt-0.5 font-mono text-slate-300">Badge/Email: <strong className="text-white">police.hq@emstrap.gov.in</strong> (or <strong className="text-white">yelahanka.ps@emstrap.gov.in</strong>)</p>
               <p className="font-mono text-slate-300">Password: <strong className="text-white">Police@123</strong></p>
+              <div className="mt-2.5 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => fillDemoCredentials('police.hq@emstrap.gov.in')}
+                  className="rounded-lg bg-blue-600/30 px-2.5 py-1 text-[11px] font-bold text-blue-200 border border-blue-400/40 hover:bg-blue-600/50"
+                >
+                  ⚡ Fill HQ Demo Login
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fillDemoCredentials('yelahanka.ps@emstrap.gov.in')}
+                  className="rounded-lg bg-blue-600/30 px-2.5 py-1 text-[11px] font-bold text-blue-200 border border-blue-400/40 hover:bg-blue-600/50"
+                >
+                  ⚡ Fill Yelahanka PS Demo Login
+                </button>
+              </div>
             </div>
 
             <button

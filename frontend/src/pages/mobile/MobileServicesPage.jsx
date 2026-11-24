@@ -7,7 +7,7 @@ import CameraCaptureModal from '../../components/CameraCaptureModal'
 import { dispatchEmergency } from '../../services/emergencySocket'
 import { useAuth } from '../../context/AuthContext'
 const services = [
-  { title: 'Government SOS', detail: 'Immediate emergency response', icon: Siren, tone: 'red' },
+  { title: 'Emergency', detail: 'Immediate emergency response', icon: Siren, tone: 'red' },
   { title: 'Basic', detail: 'Comfortable standard patient transport', icon: Ambulance, tone: 'blue' },
   { title: 'Oxygen', detail: 'Transport with oxygen support', icon: Wind, tone: 'purple' },
   { title: 'ICU', detail: 'Critical care transport and monitoring', icon: HeartPulse, tone: 'amber' },
@@ -30,7 +30,7 @@ export default function MobileServicesPage() {
     <p className="mt-2 text-sm leading-5 text-slate-500">Choose an ambulance equipped for your needs.</p>
     <div className="mt-6 grid grid-cols-2 gap-3">
       {services.map(({ title, detail, icon: Icon, tone }) => {
-        const emergency = title === 'Government SOS'
+        const emergency = title === 'Emergency' || title === 'Government SOS'
         return <button
           key={title}
           onClick={() => emergency ? setCameraOpen(true) : navigate(`/booking?care=${encodeURIComponent(title)}`)}

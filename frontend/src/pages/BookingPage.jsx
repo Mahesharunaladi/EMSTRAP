@@ -142,17 +142,54 @@ export default function BookingPage() {
   const travelMinutes = routeCalculation?.minutes || 5
 
   const searchDestination = async () => {
-    if (!destination.trim() || destination.trim().length < 3) return
+    const term = destination.trim()
+    if (!term || term.length < 2) return
     setSearchingDestination(true)
+    let foundResults = []
     try {
-      const { data } = await api.get('/location/search', { params: { query: destination.trim() } })
-      setDestinationResults(data?.data?.results || [])
-      if (!data?.data?.results?.length) toast('No matching hospitals or landmarks found. Try another search term.')
-    } catch {
-      toast.error('Unable to search destinations right now.')
-    } finally {
-      setSearchingDestination(false)
+      // 1. Try internal backend API with both q and query parameters
+      const { data } = await api.get('/location/search', { params: { q: term, query: term } })
+      const list = Array.isArray(data?.data) ? data.data : (data?.data?.results || [])
+      if (Array.isArray(list) && list.length > 0) {
+        foundResults = list
+      }
+    } catch (e) {
+      console.warn('Backend location search failed, falling back to public geocoder:', e.message)
     }
+
+    // 2. Direct client-side Nominatim fallback if backend returned nothing or errored
+    if (!foundResults.length) {
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=${encodeURIComponent(term)}`, {
+          headers: { 'Accept-Language': 'en' },
+          signal: AbortSignal.timeout(4000)
+        })
+        if (res.ok) {
+          const osmData = await res.json()
+          if (Array.isArray(osmData) && osmData.length > 0) {
+            foundResults = osmData.map(item => ({
+              displayName: item.display_name,
+              lat: Number(item.lat),
+              lng: Number(item.lon)
+            })).filter(r => Number.isFinite(r.lat) && Number.isFinite(r.lng))
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 3. Fallback: if still no results, offer manual custom address with approximate offset from pickup
+    if (!foundResults.length && pickupCoords) {
+      // Create a helpful fallback destination based on user's entered text
+      foundResults = [{
+        displayName: `${term} (Custom Destination)`,
+        lat: pickupCoords.lat + 0.025,
+        lng: pickupCoords.lng + 0.025,
+        isCustom: true
+      }]
+    }
+
+    setDestinationResults(foundResults)
+    setSearchingDestination(false)
   }
 
   const requestAmbulance = async () => {

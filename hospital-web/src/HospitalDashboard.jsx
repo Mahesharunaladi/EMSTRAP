@@ -34,6 +34,7 @@ import { joinHospitalRoom } from './services/hospitalSocket'
 import { normalizeCoords } from './utils/geoUtils'
 import { calculateEta } from './utils/etaCalculator'
 import { playEmergencySiren, stopEmergencySiren } from './utils/audioPlayer'
+import HospitalLiveMap from './components/HospitalLiveMap'
 
 export default function HospitalDashboard() {
   const [emergencies, setEmergencies] = useState([])
@@ -209,7 +210,7 @@ export default function HospitalDashboard() {
   const handleHospitalAction = async (emergencyId, action) => {
     try {
       setActionLoading(prev => ({ ...prev, [emergencyId]: action }))
-      const res = await api.patch(`/hospital/alerts/${emergencyId}/acknowledge`, { action })
+      await api.patch(`/hospital/alerts/${emergencyId}/acknowledge`, { action })
       toast.success(action === 'BED_PREPARED' ? '✅ Trauma Bed & ER Team Dispatched' : '✅ Patient Handover Confirmed')
       fetchEmergencies()
     } catch (err) {
@@ -219,28 +220,26 @@ export default function HospitalDashboard() {
     }
   }
 
-  // If Not Authenticated, show Login Screen with Demo Credentials Button
+  // If Not Authenticated, show Login Screen with Demo Credentials Button in Clean Light Theme
   if (!authenticated) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center p-4">
-        <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-48 h-48 bg-rose-600/10 rounded-full blur-3xl pointer-events-none" />
-
-          <div className="text-center space-y-2 mb-6">
-            <div className="inline-flex p-3 bg-rose-600/20 text-rose-500 rounded-2xl border border-rose-500/30 mb-2">
-              <HospitalIcon size={32} />
+      <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center p-4">
+        <div className="w-full max-w-md bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xl relative overflow-hidden">
+          <div className="text-center space-y-3 mb-6">
+            <img src="/emstrap-logo.png" alt="EmSTraP Logo" className="h-16 mx-auto object-contain" />
+            <div>
+              <h1 className="text-2xl font-black tracking-tight text-slate-900">
+                EmSTraP Hospital Command
+              </h1>
+              <p className="text-xs text-slate-500 mt-1">
+                Trauma Center, Emergency Room & Inbound Ambulance Radar
+              </p>
             </div>
-            <h1 className="text-2xl font-black tracking-tight text-white flex items-center justify-center gap-2">
-              EmSTraP Hospital Command
-            </h1>
-            <p className="text-xs text-slate-400">
-              Trauma Center, Emergency Room & Inbound Ambulance Portal
-            </p>
           </div>
 
           <form onSubmit={handleHospitalLogin} className="space-y-4">
             <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                 Hospital Command Email
               </label>
               <input
@@ -248,13 +247,13 @@ export default function HospitalDashboard() {
                 required
                 value={loginEmail}
                 onChange={e => setLoginEmail(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-rose-500 transition"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:bg-white transition"
                 placeholder="hospital.hq@emstrap.gov.in"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                 Password
               </label>
               <input
@@ -262,21 +261,21 @@ export default function HospitalDashboard() {
                 required
                 value={loginPassword}
                 onChange={e => setLoginPassword(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-rose-500 transition"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:bg-white transition"
                 placeholder="••••••••"
               />
             </div>
 
             {loginError && (
-              <div className="p-3 bg-red-950/50 border border-red-800/80 rounded-xl text-xs text-red-300 flex items-center gap-2">
-                <AlertTriangle size={16} className="shrink-0" />
+              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-center gap-2">
+                <AlertTriangle size={16} className="shrink-0 text-red-600" />
                 <span>{loginError}</span>
               </div>
             )}
 
             <button
               type="submit"
-              className="w-full bg-rose-600 hover:bg-rose-500 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-rose-600/30 transition flex items-center justify-center gap-2"
+              className="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-rose-600/20 transition flex items-center justify-center gap-2"
             >
               <Lock size={16} />
               <span>Enter Trauma Command Center</span>
@@ -285,16 +284,16 @@ export default function HospitalDashboard() {
             <button
               type="button"
               onClick={fillDemoCredentials}
-              className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold py-2.5 px-4 rounded-xl border border-slate-700 transition flex items-center justify-center gap-2 text-xs"
+              className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 px-4 rounded-xl border border-slate-200 transition flex items-center justify-center gap-2 text-xs"
             >
-              <Sparkles size={14} className="text-amber-400" />
+              <Sparkles size={14} className="text-amber-500" />
               <span>Fill Demo Hospital Credentials</span>
             </button>
           </form>
 
-          <div className="mt-6 pt-4 border-t border-slate-800/80 text-center">
-            <p className="text-[11px] text-slate-500">
-              Demo: <span className="text-slate-400 font-mono">hospital.hq@emstrap.gov.in</span> · Password: <span className="text-slate-400 font-mono">Hospital@123</span>
+          <div className="mt-6 pt-4 border-t border-slate-100 text-center">
+            <p className="text-[11px] text-slate-400">
+              Demo: <span className="text-slate-600 font-mono font-bold">hospital.hq@emstrap.gov.in</span> · Password: <span className="text-slate-600 font-mono font-bold">Hospital@123</span>
             </p>
           </div>
         </div>
@@ -303,36 +302,34 @@ export default function HospitalDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
-      {/* Top Navigation Bar */}
-      <header className="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 sm:px-6 py-3.5 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-rose-600/20 text-rose-500 rounded-xl border border-rose-500/30">
-            <HospitalIcon size={22} />
-          </div>
-          <div>
-            <h1 className="text-base sm:text-lg font-black tracking-tight text-white flex items-center gap-2">
+    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans">
+      {/* Top Navigation Bar with Logo */}
+      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 sm:px-6 py-3 flex items-center justify-between shadow-xs">
+        <div className="flex items-center gap-3.5">
+          <img src="/emstrap-logo.png" alt="EmSTraP Logo" className="h-10 w-auto object-contain" />
+          <div className="border-l border-slate-200 pl-3">
+            <h1 className="text-base sm:text-lg font-black tracking-tight text-slate-900 flex items-center gap-2">
               EmSTraP Trauma & ER Command
-              <span className="hidden sm:inline-block px-2 py-0.5 rounded-full text-[10px] bg-rose-500/20 text-rose-400 border border-rose-500/30 font-bold uppercase tracking-wider">
+              <span className="hidden sm:inline-block px-2.5 py-0.5 rounded-full text-[10px] bg-rose-100 text-rose-700 border border-rose-200 font-black uppercase tracking-wider">
                 Live 24/7 Feed
               </span>
             </h1>
-            <p className="text-[11px] text-slate-400">Emergency Medical Services & Trauma Inbound Radar</p>
+            <p className="text-[11px] text-slate-500 font-medium">Emergency Medical Services & Trauma Inbound Radar</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           {alarmActive ? (
             <button
               onClick={acknowledgeAlertBuzzer}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white rounded-xl font-bold text-xs shadow-lg shadow-red-600/40 animate-pulse hover:bg-red-700 transition"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white rounded-xl font-bold text-xs shadow-lg shadow-red-600/30 animate-pulse hover:bg-red-700 transition"
             >
               <VolumeX size={15} />
               <span>Acknowledge Siren</span>
             </button>
           ) : (
-            <span className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 text-slate-300 rounded-xl text-xs border border-slate-700">
-              <Volume2 size={14} className="text-emerald-400" />
+            <span className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-700 rounded-xl text-xs border border-slate-200 font-semibold">
+              <Volume2 size={14} className="text-emerald-600" />
               <span className="hidden sm:inline">Audible Alert Ready</span>
             </span>
           )}
@@ -340,15 +337,15 @@ export default function HospitalDashboard() {
           <button
             onClick={fetchEmergencies}
             disabled={loading}
-            className="p-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-300 border border-slate-700 transition"
+            className="p-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-700 border border-slate-200 transition"
             title="Refresh Feed"
           >
-            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+            <RefreshCw size={16} className={loading ? 'animate-spin text-rose-600' : ''} />
           </button>
 
           <button
             onClick={handleLogout}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs border border-slate-700 transition"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs border border-slate-200 font-bold transition"
           >
             <LogOut size={14} />
             <span className="hidden sm:inline">Exit</span>
@@ -358,83 +355,83 @@ export default function HospitalDashboard() {
 
       {/* Main Command Center Content */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 space-y-6">
-        {/* Statistics Bar */}
+        {/* Statistics Bar - Clean White Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center justify-between">
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-between shadow-sm">
             <div>
-              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Active Inbound</p>
-              <h3 className="text-2xl font-black text-white mt-1">
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Active Inbound</p>
+              <h3 className="text-2xl font-black text-slate-900 mt-1">
                 {emergencies.filter(e => ['PENDING', 'ACCEPTED', 'ARRIVED', 'ASSIGNED_HOSPITAL'].includes(e.status)).length}
               </h3>
             </div>
-            <div className="p-2.5 bg-rose-600/20 text-rose-400 rounded-xl">
-              <Ambulance size={20} />
+            <div className="p-2.5 bg-rose-50 text-rose-600 rounded-xl border border-rose-100">
+              <Ambulance size={22} />
             </div>
           </div>
 
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center justify-between">
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-between shadow-sm">
             <div>
-              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Bed Prepared</p>
-              <h3 className="text-2xl font-black text-amber-400 mt-1">
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Bed Prepared</p>
+              <h3 className="text-2xl font-black text-amber-600 mt-1">
                 {emergencies.filter(e => e.hospitalStatus === 'BED_PREPARED').length}
               </h3>
             </div>
-            <div className="p-2.5 bg-amber-600/20 text-amber-400 rounded-xl">
-              <Bed size={20} />
+            <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl border border-amber-100">
+              <Bed size={22} />
             </div>
           </div>
 
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center justify-between">
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-between shadow-sm">
             <div>
-              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Critical SOS</p>
-              <h3 className="text-2xl font-black text-red-500 mt-1">
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Critical SOS</p>
+              <h3 className="text-2xl font-black text-red-600 mt-1">
                 {emergencies.filter(e => e.status === 'PENDING').length}
               </h3>
             </div>
-            <div className="p-2.5 bg-red-600/20 text-red-400 rounded-xl">
-              <Siren size={20} className="animate-pulse" />
+            <div className="p-2.5 bg-red-50 text-red-600 rounded-xl border border-red-100">
+              <Siren size={22} className="animate-pulse" />
             </div>
           </div>
 
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center justify-between">
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-between shadow-sm">
             <div>
-              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Handover Complete</p>
-              <h3 className="text-2xl font-black text-emerald-400 mt-1">
-                {emergencies.filter(e => e.status === 'COMPLETED' || e.hospitalStatus === 'PATIENT_RECEIVED').length}
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Handover Complete</p>
+              <h3 className="text-2xl font-black text-emerald-600 mt-1">
+                {emergencies.filter(e => e.status === 'RESOLVED' || e.status === 'COMPLETED' || e.hospitalStatus === 'PATIENT_RECEIVED').length}
               </h3>
             </div>
-            <div className="p-2.5 bg-emerald-600/20 text-emerald-400 rounded-xl">
-              <CheckCircle2 size={20} />
+            <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100">
+              <CheckCircle2 size={22} />
             </div>
           </div>
         </div>
 
         {/* Emergency Feed Cards */}
         {emergencies.length === 0 ? (
-          <div className="bg-slate-900/60 border border-slate-800 rounded-3xl p-12 text-center space-y-3">
-            <HeartPulse size={48} className="mx-auto text-slate-600 animate-pulse" />
-            <h3 className="text-base font-bold text-slate-300">No active trauma emergency alerts</h3>
-            <p className="text-xs text-slate-500 max-w-sm mx-auto">
+          <div className="bg-white border border-slate-200 rounded-3xl p-12 text-center space-y-3 shadow-sm">
+            <HeartPulse size={48} className="mx-auto text-slate-300 animate-pulse" />
+            <h3 className="text-base font-bold text-slate-700">No active trauma emergency alerts</h3>
+            <p className="text-xs text-slate-400 max-w-sm mx-auto">
               Standing by for incoming Government emergency ambulance dispatches and 108 trauma transfers.
             </p>
           </div>
         ) : (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                <Activity size={16} className="text-rose-500" />
+              <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                <Activity size={16} className="text-rose-600" />
                 Live Inbound Trauma Alerts ({emergencies.length})
               </h2>
-              <span className="text-xs text-slate-500">Auto-refreshing every 5 seconds</span>
+              <span className="text-xs text-slate-400 font-medium">Auto-refreshing every 5 seconds</span>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
               {emergencies.map(emergency => {
                 const driver = assignments[emergency._id] || emergency.assignedDriverId
                 const driverLoc = normalizeCoords(locations[emergency._id] || emergency.driverLocation || driver?.currentLocation)
                 const victimLoc = normalizeCoords(emergency.location)
                 const isAccepted = ['ACCEPTED', 'ARRIVED', 'ASSIGNED_HOSPITAL'].includes(emergency.status)
-                const isCompleted = emergency.status === 'COMPLETED' || emergency.hospitalStatus === 'PATIENT_RECEIVED'
+                const isCompleted = emergency.status === 'RESOLVED' || emergency.status === 'COMPLETED' || emergency.hospitalStatus === 'PATIENT_RECEIVED'
 
                 const eta = (driverLoc && victimLoc && isAccepted && !isCompleted)
                   ? calculateEta(driverLoc, victimLoc, 45)
@@ -446,12 +443,12 @@ export default function HospitalDashboard() {
                 return (
                   <article
                     key={emergency._id}
-                    className={`rounded-3xl border transition-all p-5 shadow-xl flex flex-col justify-between ${
+                    className={`rounded-3xl border transition-all p-5 shadow-sm flex flex-col justify-between bg-white ${
                       isCompleted
-                        ? 'bg-slate-900/50 border-slate-800/80 opacity-75'
+                        ? 'border-slate-200 opacity-85'
                         : emergency.status === 'PENDING'
-                        ? 'bg-slate-900 border-red-500/50 ring-1 ring-red-500/30'
-                        : 'bg-slate-900 border-slate-800'
+                        ? 'border-red-300 ring-2 ring-red-500/20 shadow-md'
+                        : 'border-slate-200 hover:border-slate-300 shadow-md'
                     }`}
                   >
                     <div className="space-y-4">
@@ -460,26 +457,26 @@ export default function HospitalDashboard() {
                         <div className="space-y-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span
-                              className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                              className={`rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider ${
                                 isCompleted
-                                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                                   : emergency.status === 'PENDING'
-                                  ? 'bg-red-500/20 text-red-400 border border-red-500/30 animate-pulse'
-                                  : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                                  ? 'bg-red-100 text-red-800 border border-red-200 animate-pulse'
+                                  : 'bg-amber-100 text-amber-800 border border-amber-200'
                               }`}
                             >
                               {emergency.status}
                             </span>
                             {emergency.hospitalStatus && (
-                              <span className="rounded-full px-2 py-0.5 text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                              <span className="rounded-full px-2.5 py-0.5 text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
                                 {emergency.hospitalStatus.replace('_', ' ')}
                               </span>
                             )}
-                            <span className="text-xs text-slate-500 font-mono">
+                            <span className="text-xs text-slate-400 font-mono font-bold">
                               #{String(emergency._id).slice(-6)}
                             </span>
                           </div>
-                          <h3 className="text-base font-bold text-white">
+                          <h3 className="text-base font-bold text-slate-900">
                             {isCompleted
                               ? 'Trauma Handover Complete'
                               : emergency.status === 'PENDING'
@@ -491,8 +488,8 @@ export default function HospitalDashboard() {
                         <span
                           className={`p-2.5 rounded-2xl ${
                             isCompleted
-                              ? 'bg-emerald-500/20 text-emerald-400'
-                              : 'bg-red-500/20 text-red-400'
+                              ? 'bg-emerald-50 text-emerald-600'
+                              : 'bg-red-50 text-red-600'
                           }`}
                         >
                           <Siren size={20} className={!isCompleted ? 'animate-pulse' : ''} />
@@ -501,72 +498,56 @@ export default function HospitalDashboard() {
 
                       {/* Live ETA Banner */}
                       {eta && !isCompleted && (
-                        <div className="flex items-center justify-between rounded-xl bg-amber-500/10 p-2.5 border border-amber-500/30">
+                        <div className="flex items-center justify-between rounded-xl bg-amber-50 p-2.5 border border-amber-200">
                           <div className="flex items-center gap-2">
-                            <span className="h-2 w-2 rounded-full bg-amber-400 animate-ping" />
-                            <span className="text-xs font-bold text-amber-300">
+                            <span className="h-2 w-2 rounded-full bg-amber-500 animate-ping" />
+                            <span className="text-xs font-bold text-amber-900">
                               Ambulance Inbound ETA: {eta.badgeText}
                             </span>
                           </div>
-                          <span className="rounded-lg bg-amber-500/30 px-2 py-0.5 text-[11px] font-black text-amber-200 border border-amber-500/40">
+                          <span className="rounded-lg bg-amber-500 px-2 py-0.5 text-[11px] font-black text-white">
                             {eta.text}
                           </span>
                         </div>
                       )}
 
-                      {/* Interactive OpenStreetMap Radar */}
-                      <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-950">
-                        {driverLoc ? (
-                          <iframe
-                            title={`Hospital Radar ${emergency._id}`}
-                            className="h-44 w-full border-0"
-                            loading="lazy"
-                            src={`https://www.openstreetmap.org/export/embed.html?bbox=${driverLoc.lng - 0.012}%2C${driverLoc.lat - 0.012}%2C${driverLoc.lng + 0.012}%2C${driverLoc.lat + 0.012}&layer=mapnik&marker=${driverLoc.lat}%2C${driverLoc.lng}`}
-                          />
-                        ) : victimLoc ? (
-                          <iframe
-                            title={`Patient GPS ${emergency._id}`}
-                            className="h-44 w-full border-0"
-                            loading="lazy"
-                            src={`https://www.openstreetmap.org/export/embed.html?bbox=${victimLoc.lng - 0.008}%2C${victimLoc.lat - 0.008}%2C${victimLoc.lng + 0.008}%2C${victimLoc.lat + 0.008}&layer=mapnik&marker=${victimLoc.lat}%2C${victimLoc.lng}`}
-                          />
-                        ) : (
-                          <div className="h-32 flex items-center justify-center text-xs text-slate-500">
-                            <MapPin size={16} className="mr-1" /> GPS coordinates pending
-                          </div>
-                        )}
-                      </div>
+                      {/* Fully Interactive Leaflet Live Map */}
+                      <HospitalLiveMap
+                        victimLocation={victimLoc}
+                        driverLocation={driverLoc}
+                        emergencyId={emergency._id}
+                      />
 
                       {/* Patient & Incident Info */}
-                      <div className="rounded-2xl bg-slate-950/70 p-3 text-xs space-y-1.5 border border-slate-800/80">
+                      <div className="rounded-2xl bg-slate-50 p-3.5 text-xs space-y-1.5 border border-slate-200/80">
                         <div className="flex justify-between items-center">
-                          <span className="text-slate-400 font-semibold">Caller / Patient:</span>
-                          <span className="text-slate-200 font-bold">
+                          <span className="text-slate-500 font-semibold">Caller / Patient:</span>
+                          <span className="text-slate-900 font-bold">
                             {emergency.userId?.name || 'Emergency SOS Caller'}
                           </span>
                         </div>
                         {emergency.userId?.phone && (
                           <div className="flex justify-between items-center">
-                            <span className="text-slate-400 font-semibold">Contact Phone:</span>
-                            <span className="text-rose-400 font-mono font-bold">
+                            <span className="text-slate-500 font-semibold">Contact Phone:</span>
+                            <span className="text-slate-900 font-mono font-bold">
                               {emergency.userId.phone}
                             </span>
                           </div>
                         )}
                         {emergency.userId?.bloodGroup && (
                           <div className="flex justify-between items-center">
-                            <span className="text-slate-400 font-semibold">Blood Group:</span>
-                            <span className="px-2 py-0.5 rounded-md bg-red-600/30 text-red-300 font-bold text-[10px]">
+                            <span className="text-slate-500 font-semibold">Blood Group:</span>
+                            <span className="px-2 py-0.5 rounded-md bg-red-100 text-red-800 font-black text-[10px] border border-red-200">
                               {emergency.userId.bloodGroup}
                             </span>
                           </div>
                         )}
                         {emergency.incidentDetails && (
-                          <div className="pt-1 border-t border-slate-800">
-                            <span className="text-slate-400 font-semibold block text-[10px] uppercase">
+                          <div className="pt-2 mt-1 border-t border-slate-200">
+                            <span className="text-slate-500 font-bold block text-[10px] uppercase tracking-wider">
                               Incident & Medical Notes:
                             </span>
-                            <p className="text-slate-200 text-xs mt-0.5 italic">
+                            <p className="text-slate-800 text-xs mt-0.5 font-medium">
                               "{emergency.incidentDetails}"
                             </p>
                           </div>
@@ -577,8 +558,8 @@ export default function HospitalDashboard() {
                       {totalPhotos > 0 && (
                         <div className="space-y-2">
                           <div className="flex items-center justify-between">
-                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                              <Camera size={13} className="text-rose-400" />
+                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                              <Camera size={13} className="text-rose-600" />
                               <span>Scene Evidence Photos ({totalPhotos})</span>
                             </p>
                             <button
@@ -588,7 +569,7 @@ export default function HospitalDashboard() {
                                 setActivePhotoIndex(0)
                                 setFullViewModalOpen(true)
                               }}
-                              className="text-[11px] font-bold text-rose-400 hover:text-rose-300 transition"
+                              className="text-[11px] font-bold text-rose-600 hover:text-rose-700 transition"
                             >
                               Full View Gallery →
                             </button>
@@ -603,7 +584,7 @@ export default function HospitalDashboard() {
                                   setActivePhotoIndex(0)
                                   setFullViewModalOpen(true)
                                 }}
-                                className="h-14 w-14 rounded-xl object-cover border border-slate-700 hover:opacity-80 cursor-pointer shadow"
+                                className="h-16 w-16 rounded-xl object-cover border-2 border-slate-200 hover:opacity-85 cursor-pointer shadow-xs transition"
                               />
                             )}
                             {evidenceItems.map((item, idx) => {
@@ -619,7 +600,7 @@ export default function HospitalDashboard() {
                                     setActivePhotoIndex(idx + (emergency.incidentImage ? 1 : 0))
                                     setFullViewModalOpen(true)
                                   }}
-                                  className="h-14 w-14 rounded-xl object-cover border border-slate-700 hover:opacity-80 cursor-pointer shadow"
+                                  className="h-16 w-16 rounded-xl object-cover border-2 border-slate-200 hover:opacity-85 cursor-pointer shadow-xs transition"
                                 />
                               )
                             })}
@@ -628,16 +609,16 @@ export default function HospitalDashboard() {
                       )}
 
                       {/* Assigned Driver & Ambulance Details */}
-                      <div className="flex items-center justify-between rounded-2xl bg-slate-950/70 p-3 border border-slate-800">
+                      <div className="flex items-center justify-between rounded-2xl bg-slate-50 p-3.5 border border-slate-200">
                         <div className="flex items-center gap-2.5">
-                          <div className="grid h-10 w-10 place-items-center rounded-xl bg-red-600/30 text-red-400 border border-red-500/30">
+                          <div className="grid h-10 w-10 place-items-center rounded-xl bg-red-100 text-red-600 border border-red-200">
                             <Ambulance size={18} />
                           </div>
                           <div>
-                            <p className="text-xs font-bold text-white">
+                            <p className="text-xs font-bold text-slate-900">
                               {driver?.name || 'Awaiting Driver Assignment'}
                             </p>
-                            <p className="text-[10px] text-slate-400">
+                            <p className="text-[10px] text-slate-500 font-medium">
                               {driver?.phone ? `Phone: ${driver.phone}` : 'Government Emergency Unit'} · {driver?.ambulanceType || 'ALS Ambulance'}
                             </p>
                           </div>
@@ -647,7 +628,7 @@ export default function HospitalDashboard() {
                             href={`https://www.google.com/maps?q=${driverLoc.lat},${driverLoc.lng}`}
                             target="_blank"
                             rel="noreferrer"
-                            className="rounded-lg bg-rose-600 hover:bg-rose-500 px-2.5 py-1 text-[11px] font-bold text-white shadow transition"
+                            className="rounded-lg bg-rose-600 hover:bg-rose-700 px-3 py-1.5 text-[11px] font-bold text-white shadow-xs transition"
                           >
                             Live Map
                           </a>
@@ -656,15 +637,15 @@ export default function HospitalDashboard() {
                     </div>
 
                     {/* Hospital Action Buttons */}
-                    <div className="mt-5 pt-4 border-t border-slate-800/80 flex items-center gap-2.5">
+                    <div className="mt-5 pt-4 border-t border-slate-200 flex items-center gap-2.5">
                       <button
                         type="button"
                         disabled={actionLoading[emergency._id] || isCompleted}
                         onClick={() => handleHospitalAction(emergency._id, 'BED_PREPARED')}
-                        className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-bold transition shadow-md ${
+                        className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-bold transition shadow-xs ${
                           emergency.hospitalStatus === 'BED_PREPARED'
-                            ? 'bg-amber-600/30 text-amber-300 border border-amber-500/40'
-                            : 'bg-amber-600 hover:bg-amber-500 text-white shadow-amber-600/30'
+                            ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                            : 'bg-amber-500 hover:bg-amber-600 text-white'
                         } disabled:opacity-50`}
                       >
                         <Bed size={15} />
@@ -681,10 +662,10 @@ export default function HospitalDashboard() {
                         type="button"
                         disabled={actionLoading[emergency._id] || isCompleted}
                         onClick={() => handleHospitalAction(emergency._id, 'PATIENT_RECEIVED')}
-                        className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-bold transition shadow-md ${
+                        className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-bold transition shadow-xs ${
                           isCompleted
-                            ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/40'
-                            : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30'
+                            ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                            : 'bg-emerald-600 hover:bg-emerald-700 text-white'
                         } disabled:opacity-50`}
                       >
                         <CheckCircle2 size={15} />
@@ -733,22 +714,22 @@ export default function HospitalDashboard() {
           <div
             role="dialog"
             aria-modal="true"
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-3 backdrop-blur-md"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 backdrop-blur-sm"
             onClick={() => setFullViewModalOpen(false)}
           >
             <div
-              className="relative flex max-h-[95vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl bg-slate-950 text-white shadow-2xl border border-slate-800"
+              className="relative flex max-h-[95vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl bg-white text-slate-900 shadow-2xl border border-slate-200"
               onClick={e => e.stopPropagation()}
             >
               {/* Modal Header */}
-              <div className="flex items-center justify-between border-b border-slate-800/80 px-4 py-3 bg-slate-900/60">
+              <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 bg-slate-50">
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <span className="grid h-8 w-8 place-items-center rounded-xl bg-rose-600/30 text-rose-400 border border-rose-500/30">
+                  <span className="grid h-8 w-8 place-items-center rounded-xl bg-rose-100 text-rose-600 border border-rose-200">
                     <Camera size={16} />
                   </span>
                   <div className="min-w-0">
-                    <h3 className="text-sm font-bold truncate">Hospital Trauma Evidence & Medical Notes</h3>
-                    <p className="text-[10px] text-slate-400 font-mono">
+                    <h3 className="text-sm font-bold truncate text-slate-900">Hospital Trauma Evidence & Medical Notes</h3>
+                    <p className="text-[10px] text-slate-500 font-mono">
                       Photo {activePhotoIndex + 1} of {totalPhotos} · Incident #{String(activeEmergencyForModal._id).slice(-6)}
                     </p>
                   </div>
@@ -756,14 +737,14 @@ export default function HospitalDashboard() {
                 <button
                   type="button"
                   onClick={() => setFullViewModalOpen(false)}
-                  className="rounded-full bg-white/10 p-1.5 text-slate-300 hover:bg-white/20 hover:text-white transition"
+                  className="rounded-full bg-slate-200 p-1.5 text-slate-600 hover:bg-slate-300 transition"
                 >
                   <X size={18} />
                 </button>
               </div>
 
               {/* Photo Viewer with Carousel Controls */}
-              <div className="relative flex min-h-[340px] max-h-[55vh] flex-1 items-center justify-center bg-black p-3">
+              <div className="relative flex min-h-[340px] max-h-[55vh] flex-1 items-center justify-center bg-slate-950 p-3">
                 {currentPhoto && (
                   <img
                     src={currentPhoto.url}
@@ -795,9 +776,9 @@ export default function HospitalDashboard() {
               </div>
 
               {/* Notes & Description Footer */}
-              <div className="border-t border-slate-800/80 bg-slate-900/80 px-4 py-3 space-y-2">
-                <div className="flex items-center justify-between text-xs text-slate-300">
-                  <span className="font-semibold text-rose-400">{currentPhoto?.note}</span>
+              <div className="border-t border-slate-200 bg-slate-50 px-4 py-3 space-y-2">
+                <div className="flex items-center justify-between text-xs text-slate-600">
+                  <span className="font-bold text-rose-600">{currentPhoto?.note}</span>
                   {currentPhoto?.uploadedAt && (
                     <span className="text-[10px] text-slate-400 font-mono">
                       {new Date(currentPhoto.uploadedAt).toLocaleTimeString()}
@@ -805,11 +786,11 @@ export default function HospitalDashboard() {
                   )}
                 </div>
                 {activeEmergencyForModal.incidentDetails && (
-                  <div className="rounded-xl bg-slate-950/70 p-2.5 text-xs text-slate-300 border border-slate-800">
+                  <div className="rounded-xl bg-white p-2.5 text-xs text-slate-700 border border-slate-200 shadow-2xs">
                     <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
                       Patient / Bystander Report:
                     </p>
-                    <p className="mt-0.5 text-slate-200">{activeEmergencyForModal.incidentDetails}</p>
+                    <p className="mt-0.5 text-slate-800 font-medium">{activeEmergencyForModal.incidentDetails}</p>
                   </div>
                 )}
               </div>

@@ -96,43 +96,121 @@ export default function PoliceDashboard() {
     if (!authenticated) return
 
     let active = true
-    api.get('/police/live-tracking').then(({ data }) => {
-      if (active) {
-        const items = data.data.emergencies || []
-        setEmergencies(items)
-        setLocations(Object.fromEntries(items.map(item => [item._id, item.driverLocation]).filter(([, location]) => location)))
-      }
-    }).catch(() => {})
+
+    // Load initial emergencies from both live-tracking and alerts history
+    const loadInitialAlerts = () => {
+      api.get('/police/live-tracking').then(({ data }) => {
+        if (!active) return
+        const items = data?.data?.emergencies || []
+        if (items.length) {
+          setEmergencies(items)
+          setLocations(Object.fromEntries(items.map(item => [item._id, item.driverLocation]).filter(([, location]) => location)))
+        }
+      }).catch(() => {})
+
+      api.get('/police/alerts').then(({ data }) => {
+        if (!active) return
+        const alertsList = data?.data?.alerts || data?.data?.emergencies || []
+        if (alertsList.length) {
+          setEmergencies(current => {
+            const map = new Map(current.map(item => [String(item._id || item.emergencyId), item]))
+            for (const item of alertsList) {
+              const id = String(item._id || item.emergencyId)
+              if (!map.has(id)) {
+                map.set(id, item)
+              }
+            }
+            return Array.from(map.values()).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+          })
+        }
+      }).catch(() => {})
+    }
+
+    loadInitialAlerts()
+
+    const onEvidenceUpdated = updatePayload => {
+      const targetId = String(updatePayload.emergencyId || updatePayload._id)
+      setEmergencies(current =>
+        current.map(item => {
+          if (String(item._id || item.emergencyId) === targetId) {
+            return {
+              ...item,
+              evidenceImages: updatePayload.evidenceImages || item.evidenceImages || [],
+              incidentDetails: updatePayload.incidentDetails || item.incidentDetails
+            }
+          }
+          return item
+        })
+      )
+    }
 
     const cleanup = joinPoliceRoom(
       alert => {
-        setEmergencies(current =>
-          current.some(item => String(item._id) === String(alert.emergencyId || alert._id))
-            ? current
-            : [{ _id: alert.emergencyId || alert._id, location: alert.location, status: alert.status, userId: alert.userId, incidentImage: alert.incidentImage, evidenceImages: alert.evidenceImages || [], incidentDetails: alert.incidentDetails }, ...current]
-        )
-        triggerBuzzerAlarm(alert)
-        toast.success(`CRITICAL: New Emergency Alert · ${String(alert.emergencyId || alert._id).slice(-6)}`)
+        const alertId = String(alert.emergencyId || alert._id)
+        setEmergencies(current => {
+          if (current.some(item => String(item._id || item.emergencyId) === alertId)) {
+            return current.map(item => String(item._id || item.emergencyId) === alertId ? { ...item, ...alert } : item)
+          }
+          return [
+            {
+              _id: alertId,
+              emergencyId: alertId,
+              location: alert.location,
+              status: alert.status || 'PENDING',
+              userId: alert.userId,
+              incidentImage: alert.incidentImage,
+              evidenceImages: alert.evidenceImages || (alert.incidentImage ? [alert.incidentImage] : []),
+              incidentDetails: alert.incidentDetails,
+              createdAt: alert.createdAt || new Date()
+            },
+            ...current
+          ]
+        })
+        if (!alert.silentSync) {
+          triggerBuzzerAlarm(alert)
+          toast.success(`🚨 CRITICAL: New Emergency Alert · ${alertId.slice(-6)}`)
+        }
       },
       assignment => setAssignments(current => ({ ...current, [assignment.emergencyId]: assignment.driver })),
       update => setLocations(current => ({ ...current, [update.emergencyId]: update.location })),
-      update => setEmergencies(current => current.map(item => String(item._id) === String(update.emergencyId) ? { ...item, location: update.location } : item))
+      update => setEmergencies(current => current.map(item => String(item._id) === String(update.emergencyId) ? { ...item, location: update.location } : item)),
+      onEvidenceUpdated
     )
 
     return () => { active = false; cleanup(); stopEmergencySiren() }
   }, [authenticated])
 
+  // 10-second background REST polling fallback
   useEffect(() => {
     if (!authenticated) return
     let active = true
-    const refreshTracking = () => api.get('/police/live-tracking').then(({ data }) => {
-      if (!active) return
-      const items = data.data.emergencies || []
-      setEmergencies(items)
-      setLocations(Object.fromEntries(items.map(item => [item._id, item.driverLocation || item.assignedDriverId?.currentLocation]).filter(([, location]) => location)))
-    }).catch(() => {})
+    const pollAlerts = () => {
+      api.get('/police/live-tracking').then(({ data }) => {
+        if (!active) return
+        const items = data?.data?.emergencies || []
+        if (items.length) {
+          setEmergencies(current => {
+            const knownIds = new Set(current.map(item => String(item._id || item.emergencyId)))
+            let hasNewAlert = false
+            for (const em of items) {
+              const id = String(em._id || em.emergencyId)
+              if (!knownIds.has(id)) {
+                hasNewAlert = true
+                break
+              }
+            }
+            if (hasNewAlert && current.length > 0) {
+              triggerBuzzerAlarm(items[0])
+              toast.success(`🚨 Emergency SOS Alert Updated!`)
+            }
+            return items
+          })
+          setLocations(Object.fromEntries(items.map(item => [item._id, item.driverLocation || item.assignedDriverId?.currentLocation]).filter(([, location]) => location)))
+        }
+      }).catch(() => {})
+    }
 
-    const timer = window.setInterval(refreshTracking, 5000)
+    const timer = window.setInterval(pollAlerts, 10000)
     return () => { active = false; window.clearInterval(timer) }
   }, [authenticated])
 

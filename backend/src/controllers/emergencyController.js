@@ -1,5 +1,6 @@
 import { EmergencyAlert, EmergencyRequest, GovtDriver } from '../config/db.js'
 import { uploadImage } from '../config/cloudinary.js'
+import { sendFcmNotification } from '../services/fcmService.js'
 
 const ROOMS = { police: 'police_channel', govtDriver: 'govt_drivers_channel' }
 const userRoom = id => `user:${id}`
@@ -38,7 +39,7 @@ export async function dispatchEmergencyHttp(req, res, next) {
 
     const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000)
 
-    // 30-Minute Smart Duplicate SOS Consolidation (100m - 200m radius or same user)
+    // 30-Minute Smart Duplicate SOS Consolidation (150m - 200m radius or same user)
     const activeEmergencies = await EmergencyRequest.find({
       createdAt: { $gte: thirtyMinutesAgo },
       status: { $in: ['PENDING', 'ACCEPTED', 'ARRIVED'] }
@@ -51,7 +52,7 @@ export async function dispatchEmergencyHttp(req, res, next) {
         break
       }
       const dist = distanceMeters(location, em.location)
-      if (dist <= 200) { // within 200m
+      if (dist <= 200) { // within 150m-200m radius
         existingEmergency = em
         break
       }
@@ -73,14 +74,25 @@ export async function dispatchEmergencyHttp(req, res, next) {
       : undefined
 
     // If an alert is already active within 30 minutes at this location:
-    // Automatically merge photo & description into the original emergency!
+    // Rule:
+    // 1. Do NOT create a second alert and do NOT send a new emergency dispatch popup/notification to Driver.
+    // 2. Append User B's photo directly into User A's primary emergency document evidenceImages array.
+    // 3. Emit silent data-sync socket event (emergency_evidence_updated & EMERGENCY_EVIDENCE_ADDED) to Driver and Police dashboards.
     if (existingEmergency) {
       const updates = {}
+      let newEvidenceEntry = null
       if (incidentImage) {
+        newEvidenceEntry = {
+          url: incidentImage.url,
+          publicId: incidentImage.publicId,
+          uploadedBy: user?._id || undefined,
+          uploadedAt: new Date(),
+          note: incidentDetails ? `Witness Note: ${incidentDetails}` : (existingEmergency.userId?.toString() === user?._id?.toString() ? 'Patient Update' : 'Additional Witness Evidence')
+        }
         existingEmergency.evidence = existingEmergency.evidence || []
-        existingEmergency.evidence.push(incidentImage)
+        existingEmergency.evidence.push(newEvidenceEntry)
         existingEmergency.evidenceImages = existingEmergency.evidenceImages || []
-        existingEmergency.evidenceImages.push(incidentImage)
+        existingEmergency.evidenceImages.push(newEvidenceEntry)
         updates.evidence = existingEmergency.evidence
         updates.evidenceImages = existingEmergency.evidenceImages
       }
@@ -101,10 +113,19 @@ export async function dispatchEmergencyHttp(req, res, next) {
           _id: existingEmergency._id,
           evidenceImages: existingEmergency.evidenceImages,
           incidentDetails: existingEmergency.incidentDetails,
-          newEvidence: incidentImage,
+          newEvidence: newEvidenceEntry || incidentImage,
         }
+        // Emit silent data-sync socket events to assigned driver and police command
+        io.to(ROOMS.govtDriver).to(ROOMS.police).emit('emergency_evidence_updated', updatePayload)
         io.to(ROOMS.govtDriver).to(ROOMS.police).emit('EMERGENCY_EVIDENCE_ADDED', updatePayload)
+        io.to(`emergency:${existingEmergency._id}`).emit('emergency_evidence_updated', updatePayload)
         io.to(`emergency:${existingEmergency._id}`).emit('EMERGENCY_EVIDENCE_ADDED', updatePayload)
+        io.emit('police_emergency_alert', {
+          ...updatePayload,
+          location: existingEmergency.location,
+          status: existingEmergency.status,
+          silentSync: true,
+        })
       }
 
       const elapsedMs = Date.now() - new Date(existingEmergency.createdAt).getTime()
@@ -129,13 +150,22 @@ export async function dispatchEmergencyHttp(req, res, next) {
       })
     }
 
-    // New Emergency Request creation
+    // New Emergency Request creation (First User at this location)
+    const initialEvidence = incidentImage ? [{
+      url: incidentImage.url,
+      publicId: incidentImage.publicId,
+      uploadedBy: user?._id || undefined,
+      uploadedAt: new Date(),
+      note: 'Initial Report'
+    }] : []
+
     const request = await EmergencyRequest.create({
       userId: user?._id,
       anonymous: !user,
       location,
       incidentImage: incidentImage || undefined,
-      evidenceImages: incidentImage ? [incidentImage] : [],
+      evidence: initialEvidence,
+      evidenceImages: initialEvidence,
       incidentDetails,
     })
 
@@ -153,7 +183,7 @@ export async function dispatchEmergencyHttp(req, res, next) {
       status: request.status,
       location: request.location,
       incidentImage,
-      evidenceImages: incidentImage ? [incidentImage] : [],
+      evidenceImages: initialEvidence,
       incidentDetails: request.incidentDetails,
       userId: caller,
       createdAt: request.createdAt,
@@ -162,10 +192,33 @@ export async function dispatchEmergencyHttp(req, res, next) {
     const io = req.app.get('io')
     if (io) {
       io.to(ROOMS.govtDriver).to(ROOMS.police).emit('NEW_EMERGENCY_ALERT', alert)
+      io.emit('police_emergency_alert', alert)
       if (user) {
         io.to(userRoom(user._id.toString())).emit('EMERGENCY_DISPATCH_RECEIVED', alert)
       }
     }
+
+    // Trigger High-Priority FCM Push Notification to ON DUTY Government Drivers
+    GovtDriver.find({ isOnDuty: true, driverType: 'GOVERNMENT', fcmToken: { $exists: true, $ne: '' } })
+      .select('fcmToken')
+      .lean()
+      .then(drivers => {
+        const tokens = drivers.map(d => d.fcmToken).filter(Boolean)
+        if (tokens.length > 0) {
+          sendFcmNotification({
+            tokens,
+            title: '🚨 URGENT EMERGENCY SOS',
+            body: 'New emergency dispatch nearby. Tap to view & accept.',
+            channelId: 'emstrap_emergency_buzzer_v2',
+            sound: 'emergency_alert',
+            data: {
+              emergencyId: String(request._id),
+              type: 'EMERGENCY_SOS',
+            }
+          }).catch(e => console.warn('[FCM Emergency SOS Warning]', e.message))
+        }
+      })
+      .catch(() => {})
 
     return res.status(201).json({
       success: true,
@@ -256,10 +309,18 @@ export async function addEmergencyEvidence(req, res, next) {
       return res.status(404).json({ success: false, message: 'Emergency not found', data: null })
     }
 
+    const entry = {
+      url: uploaded.url,
+      publicId: uploaded.publicId,
+      uploadedBy: req.user?._id || undefined,
+      uploadedAt: new Date(),
+      note: req.body.note || 'Additional Witness Evidence'
+    }
+
     emergency.evidence = emergency.evidence || []
-    emergency.evidence.push(uploaded)
+    emergency.evidence.push(entry)
     emergency.evidenceImages = emergency.evidenceImages || []
-    emergency.evidenceImages.push(uploaded)
+    emergency.evidenceImages.push(entry)
     await emergency.save()
 
     const io = req.app.get('io')
@@ -267,10 +328,12 @@ export async function addEmergencyEvidence(req, res, next) {
       const payload = {
         emergencyId: emergency._id,
         _id: emergency._id,
-        newEvidence: uploaded,
+        newEvidence: entry,
         evidenceImages: emergency.evidenceImages
       }
+      io.to(ROOMS.govtDriver).to(ROOMS.police).emit('emergency_evidence_updated', payload)
       io.to(ROOMS.govtDriver).to(ROOMS.police).emit('EMERGENCY_EVIDENCE_ADDED', payload)
+      io.to(`emergency:${emergency._id}`).emit('emergency_evidence_updated', payload)
       io.to(`emergency:${emergency._id}`).emit('EMERGENCY_EVIDENCE_ADDED', payload)
     }
 

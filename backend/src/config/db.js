@@ -49,6 +49,9 @@ const mediaSchema = new mongoose.Schema({
   publicId: String,
   originalName: String,
   mimeType: String,
+  uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  uploadedAt: { type: Date, default: Date.now },
+  note: String,
 }, { _id: false })
 
 const userSchema = new mongoose.Schema({
@@ -65,7 +68,7 @@ const userSchema = new mongoose.Schema({
   currentLocation: locationSchema,
 }, { timestamps: true })
 const basicRoleSchema = new mongoose.Schema({ name: String, email: String, phone: String, role: String, stationName: String, location: locationSchema }, { timestamps: true })
-const govtDriverSchema = new mongoose.Schema({ name: { type: String, required: true, trim: true }, email: { type: String, required: true, unique: true, lowercase: true, trim: true, index: true }, phone: { type: String, match: [/^\+91[6-9]\d{9}$/, 'Phone must be a valid 10-digit Indian mobile number (+91)'] }, driverType: { type: String, enum: ['GOVERNMENT', 'PRIVATE'], default: 'GOVERNMENT' }, governmentId: { type: String, trim: true }, role: { type: String, default: 'GOVT_DRIVER' }, sessionVersion: { type: Number, default: 0, select: false }, passwordHash: { type: String, required: true, select: false }, isEmailVerified: { type: Boolean, default: false }, verificationCodeHash: { type: String, select: false }, verificationCodeExpiresAt: { type: Date, select: false }, verificationAttempts: { type: Number, default: 0, select: false }, status: { type: String, enum: ['PENDING_DOCUMENTS', 'PENDING_REVIEW', 'ACTIVE', 'SUSPENDED'], default: 'PENDING_DOCUMENTS' }, isOnDuty: { type: Boolean, default: true }, selfie: mediaSchema, drivingLicense: mediaSchema, currentLocation: locationSchema }, { timestamps: true })
+const govtDriverSchema = new mongoose.Schema({ name: { type: String, required: true, trim: true }, email: { type: String, required: true, unique: true, lowercase: true, trim: true, index: true }, phone: { type: String, match: [/^\+91[6-9]\d{9}$/, 'Phone must be a valid 10-digit Indian mobile number (+91)'] }, driverType: { type: String, enum: ['GOVERNMENT', 'PRIVATE'], default: 'GOVERNMENT' }, governmentId: { type: String, trim: true }, role: { type: String, default: 'GOVT_DRIVER' }, sessionVersion: { type: Number, default: 0, select: false }, passwordHash: { type: String, required: true, select: false }, isEmailVerified: { type: Boolean, default: false }, verificationCodeHash: { type: String, select: false }, verificationCodeExpiresAt: { type: Date, select: false }, verificationAttempts: { type: Number, default: 0, select: false }, status: { type: String, enum: ['PENDING_DOCUMENTS', 'PENDING_REVIEW', 'ACTIVE', 'SUSPENDED'], default: 'PENDING_DOCUMENTS' }, isOnDuty: { type: Boolean, default: true }, fcmToken: { type: String, trim: true }, selfie: mediaSchema, drivingLicense: mediaSchema, currentLocation: locationSchema }, { timestamps: true })
 const emergencyRequestSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   anonymous: { type: Boolean, default: false },
@@ -74,13 +77,14 @@ const emergencyRequestSchema = new mongoose.Schema({
   driverLocation: locationSchema,
   incidentImage: mediaSchema,
   evidence: [mediaSchema],
+  evidenceImages: [mediaSchema],
   assignedDriverId: { type: mongoose.Schema.Types.ObjectId, ref: 'GovtDriver' },
   incidentDetails: String,
 }, { timestamps: true })
 const emergencyAlertSchema = new mongoose.Schema({ emergencyRequestId: { type: mongoose.Schema.Types.ObjectId, ref: 'EmergencyRequest', required: true }, type: String, recipients: [String], deliveredAt: Date }, { timestamps: true })
 
 const bookingUserSchema = new mongoose.Schema({ name: String, email: String, phone: String }, { timestamps: true })
-const privateDriverSchema = new mongoose.Schema({ name: String, phone: String, isOnline: Boolean, currentLocation: locationSchema }, { timestamps: true })
+const privateDriverSchema = new mongoose.Schema({ name: String, phone: String, isOnline: Boolean, isOnDuty: { type: Boolean, default: true }, fcmToken: { type: String, trim: true }, currentLocation: locationSchema }, { timestamps: true })
 const ambulanceBookingSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'BookingUser' },
   authUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },

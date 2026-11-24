@@ -1,4 +1,4 @@
-import { Ambulance, Camera, CheckCircle2, CircleUserRound, Eye, LocateFixed, MapPin, Navigation, Phone, PhoneCall, Radio, Siren, ShieldAlert, ShieldCheck, X } from 'lucide-react'
+import { Ambulance, Camera, CheckCircle2, ChevronLeft, ChevronRight, CircleUserRound, Eye, LocateFixed, MapPin, Navigation, Phone, PhoneCall, Radio, Siren, ShieldAlert, ShieldCheck, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
@@ -8,6 +8,7 @@ import DriverCameraModal from './DriverCameraModal'
 import { verifyDriverFaceMatch } from '../../utils/faceMatcher'
 import api from '../../services/api'
 import { acceptEmergency, joinDriverRoom, onUserLocationUpdated, sendDriverLocation } from '../../services/emergencySocket'
+import { syncDriverFcmToken } from '../../utils/notificationChannels'
 
 function coords(point) {
   return Number.isFinite(Number(point?.lat)) && Number.isFinite(Number(point?.lng))
@@ -30,6 +31,8 @@ export default function DriverDashboard() {
   const [updatingDuty, setUpdatingDuty] = useState(false)
   const [locationStatus, setLocationStatus] = useState('Location sharing starts after accepting a request')
   const [modalImage, setModalImage] = useState(null)
+  const [fullViewModalOpen, setFullViewModalOpen] = useState(false)
+  const [activePhotoIndex, setActivePhotoIndex] = useState(0)
   const [biometricModalOpen, setBiometricModalOpen] = useState(false)
   const [pendingAction, setPendingAction] = useState(null) // { type: 'EMERGENCY' } or { type: 'BOOKING', booking }
 
@@ -42,12 +45,15 @@ export default function DriverDashboard() {
   const toggleDutyStatus = async () => {
     const nextStatus = !online
     setUpdatingDuty(true)
+    const fcmToken = localStorage.getItem('emstrap_fcm_token') || undefined
     try {
-      await api.patch('/driver/duty-status', { isOnDuty: nextStatus })
+      await api.patch('/driver/duty-status', { isOnDuty: nextStatus, fcmToken })
       setOnline(nextStatus)
       localStorage.setItem('emstrap_driver_onduty', String(nextStatus))
       if (!nextStatus) {
         stopEmergencySiren()
+      } else {
+        syncDriverFcmToken()
       }
       toast.success(nextStatus ? 'You are now ON DUTY (Receiving Dispatches)' : 'You are now OFF DUTY (Dispatches Paused)')
     } catch {
@@ -133,6 +139,22 @@ export default function DriverDashboard() {
       onNewBooking(booking)
     }
 
+    const onEvidenceUpdated = updatePayload => {
+      if (driver.driverType !== 'GOVERNMENT') return
+      const targetId = String(updatePayload.emergencyId || updatePayload._id)
+      setEmergency(current => {
+        if (!current || String(current._id || current.emergencyId) !== targetId) return current
+        const updatedImages = updatePayload.evidenceImages || current.evidenceImages || []
+        toast('New incident evidence photo attached from scene', { icon: '📸' })
+        return {
+          ...current,
+          evidenceImages: updatedImages,
+          evidence: updatedImages,
+          incidentDetails: updatePayload.incidentDetails || current.incidentDetails,
+        }
+      })
+    }
+
     return joinDriverRoom(
       driver.id,
       onEmergencyAlert,
@@ -150,6 +172,7 @@ export default function DriverDashboard() {
       },
       wrappedNewBooking,
       onBookingAssignment,
+      onEvidenceUpdated,
     )
   }, [driver?.id, driver?.driverType, online])
 
@@ -470,36 +493,75 @@ export default function DriverDashboard() {
               </div>
             </div>
 
-            {/* Incident Evidence Photo uploaded by User */}
-            {(emergency.incidentImage?.url || (typeof emergency.incidentImage === 'string' && emergency.incidentImage)) && (
-              <div className="mt-4 overflow-hidden rounded-2xl border border-red-200/80 bg-slate-950 p-2 text-white">
-                <div className="flex items-center justify-between px-1 pb-1.5 text-[11px] font-bold text-red-400">
-                  <span className="flex items-center gap-1.5">
-                    <Camera size={14} /> Incident Scene Evidence
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setModalImage(emergency.incidentImage?.url || emergency.incidentImage)}
-                    className="flex items-center gap-1 rounded bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-slate-200 hover:bg-white/20 transition"
+            {/* Incident Evidence Photos (Primary Alert + Attached Evidence with Full View Gallery) */}
+            {(() => {
+              const allPhotos = []
+              if (emergency.incidentImage?.url || (typeof emergency.incidentImage === 'string' && emergency.incidentImage)) {
+                allPhotos.push({
+                  url: emergency.incidentImage?.url || emergency.incidentImage,
+                  note: 'Initial Report',
+                  uploadedAt: emergency.createdAt
+                })
+              }
+              const extraImages = emergency.evidenceImages || emergency.evidence || []
+              extraImages.forEach((img, idx) => {
+                const imgUrl = img?.url || (typeof img === 'string' ? img : null)
+                if (imgUrl && !allPhotos.some(p => p.url === imgUrl)) {
+                  allPhotos.push({
+                    url: imgUrl,
+                    note: img?.note || `Additional Witness Evidence #${idx + 1}`,
+                    uploadedAt: img?.uploadedAt || emergency.createdAt
+                  })
+                }
+              })
+
+              if (!allPhotos.length) return null
+
+              const previewPhoto = allPhotos[0]
+              return (
+                <div className="mt-4 overflow-hidden rounded-2xl border border-red-200/80 bg-slate-950 p-2.5 text-white">
+                  <div className="flex items-center justify-between px-1 pb-2 text-[11px] font-bold text-red-400">
+                    <span className="flex items-center gap-1.5">
+                      <Camera size={14} /> Incident Evidence
+                      <span className="ml-1 rounded-full bg-red-600/30 px-2 py-0.5 text-[10px] text-red-200 border border-red-500/40">
+                        Evidence Photos ({allPhotos.length})
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActivePhotoIndex(0)
+                        setFullViewModalOpen(true)
+                      }}
+                      className="flex items-center gap-1 rounded-lg bg-red-600 px-2.5 py-1 text-[11px] font-bold text-white shadow hover:bg-red-500 transition"
+                    >
+                      <Eye size={13} /> Full View
+                    </button>
+                  </div>
+                  <div
+                    onClick={() => {
+                      setActivePhotoIndex(0)
+                      setFullViewModalOpen(true)
+                    }}
+                    className="group relative cursor-pointer overflow-hidden rounded-xl bg-black"
                   >
-                    <Eye size={12} /> Full view
-                  </button>
-                </div>
-                <div
-                  onClick={() => setModalImage(emergency.incidentImage?.url || emergency.incidentImage)}
-                  className="group relative cursor-pointer overflow-hidden rounded-xl bg-black"
-                >
-                  <img
-                    src={emergency.incidentImage?.url || emergency.incidentImage}
-                    alt="Incident Evidence Scene"
-                    className="h-44 w-full object-cover transition duration-300 group-hover:scale-105"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 transition group-hover:opacity-100 flex items-end justify-center p-2">
-                    <span className="rounded bg-black/70 px-2 py-1 text-[11px] font-bold text-white">Click to enlarge</span>
+                    <img
+                      src={previewPhoto.url}
+                      alt="Incident Evidence Scene"
+                      className="h-44 w-full object-cover transition duration-300 group-hover:scale-105"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-transparent flex items-end justify-between p-2.5">
+                      <span className="rounded-lg bg-black/70 px-2 py-1 text-[10px] font-semibold text-slate-200 border border-white/10">
+                        {previewPhoto.note}
+                      </span>
+                      <span className="rounded-lg bg-red-600 px-2.5 py-1 text-[11px] font-bold text-white shadow">
+                        Tap Full View ({allPhotos.length})
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )
+            })()}
 
             {/* Embedded Live Route Map */}
             {coords(emergency.location) && (
@@ -689,6 +751,144 @@ export default function DriverDashboard() {
         onCaptured={onBiometricSelfieCaptured}
       />
     )}
+
+    {/* Full View Sequential Evidence Gallery Modal */}
+    {fullViewModalOpen && emergency && (() => {
+      const allPhotos = []
+      if (emergency.incidentImage?.url || (typeof emergency.incidentImage === 'string' && emergency.incidentImage)) {
+        allPhotos.push({
+          url: emergency.incidentImage?.url || emergency.incidentImage,
+          note: 'Initial Report',
+          uploadedAt: emergency.createdAt
+        })
+      }
+      const extraImages = emergency.evidenceImages || emergency.evidence || []
+      extraImages.forEach((img, idx) => {
+        const imgUrl = img?.url || (typeof img === 'string' ? img : null)
+        if (imgUrl && !allPhotos.some(p => p.url === imgUrl)) {
+          allPhotos.push({
+            url: imgUrl,
+            note: img?.note || `Additional Witness Evidence #${idx + 1}`,
+            uploadedAt: img?.uploadedAt || emergency.createdAt
+          })
+        }
+      })
+
+      const totalPhotos = allPhotos.length
+      const currentPhoto = allPhotos[activePhotoIndex] || allPhotos[0]
+
+      return (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-3 backdrop-blur-md"
+          onClick={() => setFullViewModalOpen(false)}
+        >
+          <div
+            className="relative flex max-h-[95vh] w-full max-w-xl flex-col overflow-hidden rounded-3xl bg-slate-950 text-white shadow-2xl border border-slate-800"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-800/80 px-4 py-3 bg-slate-900/50">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="grid h-8 w-8 place-items-center rounded-xl bg-red-600/30 text-red-400 border border-red-500/30">
+                  <Camera size={16} />
+                </span>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-bold truncate">Incident Details & Evidence Gallery</h3>
+                  <p className="text-[10px] text-slate-400 font-mono">
+                    Photo {activePhotoIndex + 1} of {totalPhotos} · Consolidated Scene Evidence
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFullViewModalOpen(false)}
+                className="rounded-full bg-white/10 p-1.5 text-slate-300 hover:bg-white/20 hover:text-white transition"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Main Sequential Photo Viewer */}
+            <div className="relative flex min-h-[320px] max-h-[50vh] flex-1 items-center justify-center bg-black p-2">
+              {currentPhoto && (
+                <img
+                  src={currentPhoto.url}
+                  alt={`Incident scene photo ${activePhotoIndex + 1}`}
+                  className="max-h-[48vh] w-auto max-w-full rounded-2xl object-contain shadow-2xl"
+                />
+              )}
+
+              {/* Prev / Next Swipe Buttons */}
+              {totalPhotos > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setActivePhotoIndex(prev => (prev > 0 ? prev - 1 : totalPhotos - 1))}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-black/60 p-2 text-white shadow-lg backdrop-blur-sm hover:bg-black/80 transition"
+                    aria-label="Previous photo"
+                  >
+                    <ChevronLeft size={22} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActivePhotoIndex(prev => (prev < totalPhotos - 1 ? prev + 1 : 0))}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-black/60 p-2 text-white shadow-lg backdrop-blur-sm hover:bg-black/80 transition"
+                    aria-label="Next photo"
+                  >
+                    <ChevronRight size={22} />
+                  </button>
+                </>
+              )}
+
+              {/* Photo Caption Badge */}
+              <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between rounded-xl bg-black/75 px-3 py-1.5 backdrop-blur-md border border-white/10 text-xs">
+                <span className="font-semibold text-emerald-400 truncate">
+                  🏷️ {currentPhoto?.note || 'Scene Photo'}
+                </span>
+                <span className="text-[10px] text-slate-400 font-mono shrink-0">
+                  {currentPhoto?.uploadedAt ? new Date(currentPhoto.uploadedAt).toLocaleTimeString() : ''}
+                </span>
+              </div>
+            </div>
+
+            {/* Thumbnail Navigation Strip */}
+            {totalPhotos > 1 && (
+              <div className="flex gap-2 overflow-x-auto border-t border-slate-800 bg-slate-900/60 p-2.5">
+                {allPhotos.map((photo, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setActivePhotoIndex(idx)}
+                    className={`relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border-2 transition ${
+                      activePhotoIndex === idx
+                        ? 'border-red-500 ring-2 ring-red-400/50 scale-105'
+                        : 'border-slate-700 opacity-60 hover:opacity-100'
+                    }`}
+                  >
+                    <img src={photo.url} alt="" className="h-full w-full object-cover" />
+                    <span className="absolute bottom-0 right-0 rounded-tl bg-black/80 px-1 text-[9px] font-bold">
+                      {idx + 1}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Incident Description & Live Responders Updates */}
+            <div className="max-h-36 overflow-y-auto border-t border-slate-800 bg-slate-950 p-3 text-xs">
+              <div className="flex items-center gap-1.5 font-bold text-red-400 mb-1">
+                <ShieldAlert size={14} /> Incident Notes & Updates from Scene
+              </div>
+              <p className="text-slate-300 leading-relaxed">
+                {emergency.incidentDetails || 'No additional incident notes provided yet.'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )
+    })()}
 
     {/* Lightbox / Modal for enlarged Incident Image */}
     {modalImage && (

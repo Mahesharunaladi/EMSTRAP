@@ -7,8 +7,10 @@ import DriverPortal from '../../src/pages/driver/DriverPortal'
 import DriverProfile from '../../src/pages/driver/DriverProfile'
 import './driver.css'
 import { initSafeGeolocation } from '../../src/utils/safeGeolocation'
+import { initPushNotificationChannels } from '../../src/utils/notificationChannels'
 
 initSafeGeolocation()
+initPushNotificationChannels()
 
 function DriverRoute({ children }) {
   const hasSession = localStorage.getItem('emstrap_driver_token') || sessionStorage.getItem('emstrap_driver_session')

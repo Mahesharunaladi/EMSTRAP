@@ -4,8 +4,10 @@ import { Toaster } from 'react-hot-toast'
 import PoliceDashboard from '../../src/pages/police/PoliceDashboard'
 import './police.css'
 import { initSafeGeolocation } from '../../src/utils/safeGeolocation'
+import { initPushNotificationChannels } from '../../src/utils/notificationChannels'
 
 initSafeGeolocation()
+initPushNotificationChannels()
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

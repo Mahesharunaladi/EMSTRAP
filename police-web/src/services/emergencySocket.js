@@ -119,5 +119,42 @@ export async function acceptEmergency(emergencyId) {
     socket.emit('driver_accept_emergency', { emergencyId })
   }
 }
-export function joinPoliceRoom(onAlert, onAssignment, onDriverLocation, onUserLocation) { connect(); socket.emit('join_room', { role: 'POLICE' }); if (onAlert) socket.on('NEW_EMERGENCY_ALERT', onAlert); if (onAssignment) socket.on('DRIVER_ASSIGNED', onAssignment); if (onDriverLocation) socket.on('DRIVER_LOCATION_UPDATED', onDriverLocation); if (onUserLocation) socket.on('USER_LOCATION_UPDATED', onUserLocation); return () => { if (onAlert) socket.off('NEW_EMERGENCY_ALERT', onAlert); if (onAssignment) socket.off('DRIVER_ASSIGNED', onAssignment); if (onDriverLocation) socket.off('DRIVER_LOCATION_UPDATED', onDriverLocation); if (onUserLocation) socket.off('USER_LOCATION_UPDATED', onUserLocation) } }
+export function joinPoliceRoom(onAlert, onAssignment, onDriverLocation, onUserLocation, onEvidenceUpdated) {
+  connect()
+  const emitJoin = () => {
+    socket.emit('join_room', { role: 'POLICE' })
+    socket.emit('join_police_room')
+  }
+  emitJoin()
+  socket.on('connect', emitJoin)
+  socket.on('reconnect', emitJoin)
+
+  if (onAlert) {
+    socket.on('NEW_EMERGENCY_ALERT', onAlert)
+    socket.on('police_emergency_alert', onAlert)
+  }
+  if (onEvidenceUpdated) {
+    socket.on('emergency_evidence_updated', onEvidenceUpdated)
+    socket.on('EMERGENCY_EVIDENCE_ADDED', onEvidenceUpdated)
+  }
+  if (onAssignment) socket.on('DRIVER_ASSIGNED', onAssignment)
+  if (onDriverLocation) socket.on('DRIVER_LOCATION_UPDATED', onDriverLocation)
+  if (onUserLocation) socket.on('USER_LOCATION_UPDATED', onUserLocation)
+
+  return () => {
+    socket.off('connect', emitJoin)
+    socket.off('reconnect', emitJoin)
+    if (onAlert) {
+      socket.off('NEW_EMERGENCY_ALERT', onAlert)
+      socket.off('police_emergency_alert', onAlert)
+    }
+    if (onEvidenceUpdated) {
+      socket.off('emergency_evidence_updated', onEvidenceUpdated)
+      socket.off('EMERGENCY_EVIDENCE_ADDED', onEvidenceUpdated)
+    }
+    if (onAssignment) socket.off('DRIVER_ASSIGNED', onAssignment)
+    if (onDriverLocation) socket.off('DRIVER_LOCATION_UPDATED', onDriverLocation)
+    if (onUserLocation) socket.off('USER_LOCATION_UPDATED', onUserLocation)
+  }
+}
 export function onUserLocationUpdated(callback) { connect(); socket.on('USER_LOCATION_UPDATED', callback); return () => socket.off('USER_LOCATION_UPDATED', callback) }

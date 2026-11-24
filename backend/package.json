@@ -9,17 +9,17 @@
     "check": "node --check src/server.js && node --check src/app.js && node --check src/config/db.js && node --check src/socket/socketHandler.js"
   },
   "dependencies": {
+    "bcryptjs": "latest",
     "cloudinary": "latest",
     "cookie-parser": "latest",
     "cors": "latest",
     "dotenv": "latest",
     "express": "latest",
-    "bcryptjs": "latest",
+    "firebase-admin": "^14.5.1",
     "jsonwebtoken": "latest",
     "mongoose": "latest",
     "multer": "latest",
     "nodemailer": "latest",
     "socket.io": "latest"
-  },
-  "devDependencies": {}
+  }
 }

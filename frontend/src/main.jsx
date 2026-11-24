@@ -5,8 +5,10 @@ import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
 import './index.css'
 import { initSafeGeolocation } from './utils/safeGeolocation'
+import { initPushNotificationChannels } from './utils/notificationChannels'
 
 initSafeGeolocation()
+initPushNotificationChannels()
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

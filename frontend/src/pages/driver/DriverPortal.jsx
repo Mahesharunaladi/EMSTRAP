@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import api from '../../services/api'
 import DriverCameraModal from './DriverCameraModal'
+import { syncDriverFcmToken } from '../../utils/notificationChannels'
 
 function fileToDataUrl(file) {
   return new Promise((resolve, reject) => {
@@ -36,6 +37,7 @@ export default function DriverPortal() {
     // Ensure on fresh launch without an active session, driver is on login mode
     const activeSession = sessionStorage.getItem('emstrap_driver_session')
     if (activeSession && localStorage.getItem('emstrap_driver_token')) {
+      syncDriverFcmToken()
       navigate('/driver/dashboard', { replace: true })
     } else {
       setMode('login')

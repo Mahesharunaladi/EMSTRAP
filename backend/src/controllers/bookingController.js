@@ -1,5 +1,6 @@
-import { AmbulanceBooking, BookingUser, GovtDriver } from '../config/db.js'
+import { AmbulanceBooking, BookingUser, GovtDriver, PrivateDriver } from '../config/db.js'
 import { canDriverReceiveDispatch } from '../utils/driverDispatch.js'
+import { sendFcmNotification } from '../services/fcmService.js'
 
 const activeBookingStatuses = ['ACCEPTED', 'STARTED']
 
@@ -97,6 +98,28 @@ export async function createBooking(req, res, next) {
     const payload = publicBooking(booking)
     const io = req.app.get('io')
     if (io) io.to('private_drivers_channel').emit('NEW_PRIVATE_BOOKING', payload)
+
+    // Trigger High-Priority FCM Push Notification to ON DUTY Private Drivers
+    // Also include GovtDriver with driverType === 'PRIVATE' if saved under GovtDriver
+    Promise.all([
+      PrivateDriver.find({ isOnDuty: true, fcmToken: { $exists: true, $ne: '' } }).select('fcmToken').lean().catch(() => []),
+      GovtDriver.find({ isOnDuty: true, driverType: 'PRIVATE', fcmToken: { $exists: true, $ne: '' } }).select('fcmToken').lean().catch(() => [])
+    ]).then(([pDrivers, gDrivers]) => {
+      const tokens = [...pDrivers, ...gDrivers].map(d => d.fcmToken).filter(Boolean)
+      if (tokens.length > 0) {
+        sendFcmNotification({
+          tokens,
+          title: '🚑 NEW AMBULANCE BOOKING',
+          body: 'New private ambulance ride request received.',
+          channelId: 'emstrap_private_booking_buzzer_v2',
+          sound: 'private_driver_alert',
+          data: {
+            bookingId: String(booking._id),
+            type: 'PRIVATE_BOOKING',
+          }
+        }).catch(e => console.warn('[FCM Private Booking Warning]', e.message))
+      }
+    }).catch(() => {})
 
     res.status(201).json({
       success: true,

@@ -6,7 +6,7 @@ import { uploadImage } from '../config/cloudinary.js'
 import { sendVerificationCode } from '../services/emailService.js'
 import { canDriverReceiveDispatch } from '../utils/driverDispatch.js'
 
-const driverPublic = driver => ({ id: driver._id, name: driver.name, email: driver.email, phone: driver.phone, driverType: driver.driverType || 'GOVERNMENT', role: 'driver', verified: driver.isEmailVerified, status: driver.status, isOnDuty: driver.isOnDuty !== false, selfie: driver.selfie, drivingLicense: driver.drivingLicense, currentLocation: driver.currentLocation })
+const driverPublic = driver => ({ id: driver._id, name: driver.name, email: driver.email, phone: driver.phone, driverType: driver.driverType || 'GOVERNMENT', role: 'driver', verified: driver.isEmailVerified, status: driver.status, isOnDuty: driver.isOnDuty !== false, fcmToken: driver.fcmToken, selfie: driver.selfie, drivingLicense: driver.drivingLicense, currentLocation: driver.currentLocation })
 const issueDriverSession = (res, driver) => {
   const isProd = process.env.NODE_ENV === 'production'
   const token = jwt.sign({ sub: driver._id.toString(), role: 'GOVT_DRIVER', ver: driver.sessionVersion || 0 }, process.env.JWT_SECRET, { expiresIn: '365d' })
@@ -121,12 +121,34 @@ export async function acceptDriverEmergency(req, res, next) {
   }
 }
 
+export async function updateDriverFcmToken(req, res, next) {
+  try {
+    const fcmToken = typeof req.body.fcmToken === 'string' ? req.body.fcmToken.trim() : ''
+    const driver = await GovtDriver.findByIdAndUpdate(
+      req.driver._id,
+      { $set: { fcmToken } },
+      { returnDocument: 'after' }
+    ).lean()
+    return res.json({
+      success: true,
+      message: 'FCM push token registered',
+      data: { fcmToken: driver.fcmToken }
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
 export async function updateDriverDutyStatus(req, res, next) {
   try {
     const isOnDuty = Boolean(req.body.isOnDuty)
+    const updateObj = { isOnDuty }
+    if (typeof req.body.fcmToken === 'string' && req.body.fcmToken.trim()) {
+      updateObj.fcmToken = req.body.fcmToken.trim()
+    }
     const driver = await GovtDriver.findByIdAndUpdate(
       req.driver._id,
-      { $set: { isOnDuty } },
+      { $set: updateObj },
       { returnDocument: 'after' }
     ).lean()
     return res.json({

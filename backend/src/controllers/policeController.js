@@ -9,6 +9,18 @@ export async function liveTracking(_req, res, next) {
   } catch (error) { next(error) }
 }
 
+export async function getPoliceAlerts(_req, res, next) {
+  try {
+    const alerts = await EmergencyRequest.find({})
+      .populate('assignedDriverId', 'name phone selfie currentLocation status')
+      .populate('userId', 'name phone')
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .lean()
+    res.json({ success: true, message: 'Police emergency alerts history', data: { alerts, emergencies: alerts } })
+  } catch (error) { next(error) }
+}
+
 export async function nearestStation(req, res, next) {
   try {
     const lat = Number(req.query.lat); const lng = Number(req.query.lng)

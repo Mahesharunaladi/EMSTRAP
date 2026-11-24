@@ -119,11 +119,16 @@ export function registerSocketHandlers(io) {
         room = role === 'PRIVATE_DRIVER' ? ROOMS.privateDriver : ROOMS.govtDriver
         if (!driverRoomWatcher && driver) driverRoomWatcher = setInterval(syncDriverRoom, 30_000)
       }
-      if (role === 'POLICE') room = ROOMS.police
+      if (role === 'POLICE' || role === 'police') room = ROOMS.police
       if (userId) socket.join(userRoom(String(userId)))
       if (emergencyId) socket.join(emergencyRoom(String(emergencyId)))
       if (room) socket.join(room)
       socket.emit('room_joined', { room, success: Boolean(room || userId || emergencyId) })
+    })
+
+    socket.on('join_police_room', () => {
+      socket.join(ROOMS.police)
+      socket.emit('room_joined', { room: ROOMS.police, success: true })
     })
 
     socket.on('driver_location_update', async ({ emergencyId, lat, lng, heading } = {}) => {
@@ -161,8 +166,18 @@ export function registerSocketHandlers(io) {
         const request = await persistEmergency(payload, user)
         socket.join(emergencyRoom(request._id.toString()))
         const caller = user ? { _id: user._id, name: user.name, phone: user.phone } : null
-        const alert = { emergencyId: request._id, _id: request._id, status: request.status, location: request.location, incidentImage: request.incidentImage, incidentDetails: request.incidentDetails, userId: caller }
+        const alert = {
+          emergencyId: request._id,
+          _id: request._id,
+          status: request.status,
+          location: request.location,
+          incidentImage: request.incidentImage,
+          evidenceImages: request.evidenceImages || (request.incidentImage ? [request.incidentImage] : []),
+          incidentDetails: request.incidentDetails,
+          userId: caller
+        }
         io.to(ROOMS.govtDriver).to(ROOMS.police).emit('NEW_EMERGENCY_ALERT', alert)
+        io.emit('police_emergency_alert', alert)
         if (user) io.to(userRoom(user._id.toString())).emit('EMERGENCY_DISPATCH_RECEIVED', alert)
         socket.emit('emergency:created', { success: true, data: alert })
         acknowledgement?.({ success: true, data: alert })

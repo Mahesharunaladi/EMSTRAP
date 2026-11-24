@@ -116,8 +116,8 @@ export async function dispatchEmergencyHttp(req, res, next) {
           newEvidence: newEvidenceEntry || incidentImage,
         }
         // Emit silent data-sync socket events to assigned driver and police command
-        io.to(ROOMS.govtDriver).to(ROOMS.police).emit('emergency_evidence_updated', updatePayload)
-        io.to(ROOMS.govtDriver).to(ROOMS.police).emit('EMERGENCY_EVIDENCE_ADDED', updatePayload)
+        io.to(ROOMS.govtDriver).to(ROOMS.police).to('hospital_channel').emit('emergency_evidence_updated', updatePayload)
+        io.to(ROOMS.govtDriver).to(ROOMS.police).to('hospital_channel').emit('EMERGENCY_EVIDENCE_ADDED', updatePayload)
         io.to(`emergency:${existingEmergency._id}`).emit('emergency_evidence_updated', updatePayload)
         io.to(`emergency:${existingEmergency._id}`).emit('EMERGENCY_EVIDENCE_ADDED', updatePayload)
         io.emit('police_emergency_alert', {
@@ -191,7 +191,7 @@ export async function dispatchEmergencyHttp(req, res, next) {
 
     const io = req.app.get('io')
     if (io) {
-      io.to(ROOMS.govtDriver).to(ROOMS.police).emit('NEW_EMERGENCY_ALERT', alert)
+      io.to(ROOMS.govtDriver).to(ROOMS.police).to('hospital_channel').emit('NEW_EMERGENCY_ALERT', alert)
       io.emit('police_emergency_alert', alert)
       if (user) {
         io.to(userRoom(user._id.toString())).emit('EMERGENCY_DISPATCH_RECEIVED', alert)
@@ -279,7 +279,7 @@ export async function updateEmergencyDescription(req, res, next) {
     const io = req.app.get('io')
     if (io) {
       const payload = { emergencyId: emergency._id, _id: emergency._id, incidentDetails: emergency.incidentDetails }
-      io.to(ROOMS.govtDriver).to(ROOMS.police).emit('EMERGENCY_DESCRIPTION_UPDATED', payload)
+      io.to(ROOMS.govtDriver).to(ROOMS.police).to('hospital_channel').emit('EMERGENCY_DESCRIPTION_UPDATED', payload)
       io.to(`emergency:${emergency._id}`).emit('EMERGENCY_DESCRIPTION_UPDATED', payload)
     }
 
@@ -331,8 +331,8 @@ export async function addEmergencyEvidence(req, res, next) {
         newEvidence: entry,
         evidenceImages: emergency.evidenceImages
       }
-      io.to(ROOMS.govtDriver).to(ROOMS.police).emit('emergency_evidence_updated', payload)
-      io.to(ROOMS.govtDriver).to(ROOMS.police).emit('EMERGENCY_EVIDENCE_ADDED', payload)
+      io.to(ROOMS.govtDriver).to(ROOMS.police).to('hospital_channel').emit('emergency_evidence_updated', payload)
+      io.to(ROOMS.govtDriver).to(ROOMS.police).to('hospital_channel').emit('EMERGENCY_EVIDENCE_ADDED', payload)
       io.to(`emergency:${emergency._id}`).emit('emergency_evidence_updated', payload)
       io.to(`emergency:${emergency._id}`).emit('EMERGENCY_EVIDENCE_ADDED', payload)
     }

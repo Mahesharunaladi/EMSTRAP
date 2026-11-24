@@ -1,4 +1,4 @@
-import { Ambulance, Bell, BellOff, Camera, Check, CircleAlert, Eye, LocateFixed, Lock, MapPin, Radio, ShieldCheck, Siren, User, Volume2, VolumeX, X } from 'lucide-react'
+import { Ambulance, ChevronLeft, ChevronRight, Bell, BellOff, Camera, Check, CircleAlert, Eye, LocateFixed, Lock, MapPin, Radio, ShieldCheck, Siren, User, Volume2, VolumeX, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 import api from './services/api'
@@ -28,6 +28,9 @@ export default function PoliceDashboard() {
   const [station, setStation] = useState(null)
   const [modalImage, setModalImage] = useState(null)
   const [alarmActive, setAlarmActive] = useState(false)
+  const [fullViewModalOpen, setFullViewModalOpen] = useState(false)
+  const [activeEmergencyForModal, setActiveEmergencyForModal] = useState(null)
+  const [activePhotoIndex, setActivePhotoIndex] = useState(0)
 
   // Hardcoded Police Login state (for standalone web app & shared session)
   const [authenticated, setAuthenticated] = useState(() => {
@@ -210,7 +213,7 @@ export default function PoliceDashboard() {
       }).catch(() => {})
     }
 
-    const timer = window.setInterval(pollAlerts, 10000)
+    const timer = window.setInterval(pollAlerts, 5000)
     return () => { active = false; window.clearInterval(timer) }
   }, [authenticated])
 
@@ -459,16 +462,34 @@ export default function PoliceDashboard() {
                     </div>
 
                     {/* Scene Evidence Gallery */}
-                    {(emergency.incidentImage?.url || evidenceItems.length > 0) && (
+                    {(emergency.incidentImage?.url || (typeof emergency.incidentImage === 'string' && emergency.incidentImage) || evidenceItems.length > 0) && (
                       <div className="space-y-2">
-                        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Incident Scene Evidence</p>
+                        <div className="flex items-center justify-between">
+                          <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Incident Scene Evidence</p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveEmergencyForModal(emergency)
+                              setActivePhotoIndex(0)
+                              setFullViewModalOpen(true)
+                            }}
+                            className="flex items-center gap-1 rounded-lg bg-red-600/10 px-2 py-0.5 text-[11px] font-bold text-red-700 hover:bg-red-600/20 transition"
+                          >
+                            <Camera size={12} />
+                            <span>View Full Gallery ({(emergency.incidentImage ? 1 : 0) + evidenceItems.length})</span>
+                          </button>
+                        </div>
                         <div className="flex flex-wrap gap-2">
-                          {emergency.incidentImage?.url && (
+                          {(emergency.incidentImage?.url || (typeof emergency.incidentImage === 'string' && emergency.incidentImage)) && (
                             <img
-                              src={emergency.incidentImage.url}
-                              alt="Scene evidence"
-                              onClick={() => setModalImage(emergency.incidentImage.url)}
-                              className="h-16 w-16 cursor-pointer rounded-xl object-cover border-2 border-slate-300 hover:opacity-90"
+                              src={emergency.incidentImage?.url || emergency.incidentImage}
+                              alt="Initial Scene Evidence"
+                              onClick={() => {
+                                setActiveEmergencyForModal(emergency)
+                                setActivePhotoIndex(0)
+                                setFullViewModalOpen(true)
+                              }}
+                              className="h-16 w-16 cursor-pointer rounded-xl object-cover border-2 border-slate-300 shadow-sm hover:opacity-90 transition"
                             />
                           )}
                           {evidenceItems.map((item, idx) => {
@@ -478,9 +499,13 @@ export default function PoliceDashboard() {
                               <img
                                 key={idx}
                                 src={url}
-                                alt={`Evidence ${idx + 1}`}
-                                onClick={() => setModalImage(url)}
-                                className="h-16 w-16 cursor-pointer rounded-xl object-cover border-2 border-slate-300 hover:opacity-90"
+                                alt={`Witness Evidence ${idx + 1}`}
+                                onClick={() => {
+                                  setActiveEmergencyForModal(emergency)
+                                  setActivePhotoIndex(idx + (emergency.incidentImage ? 1 : 0))
+                                  setFullViewModalOpen(true)
+                                }}
+                                className="h-16 w-16 cursor-pointer rounded-xl object-cover border-2 border-slate-300 shadow-sm hover:opacity-90 transition"
                               />
                             )
                           })}

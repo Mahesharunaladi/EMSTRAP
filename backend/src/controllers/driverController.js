@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs'
 import crypto from 'node:crypto'
 import jwt from 'jsonwebtoken'
-import { EmergencyRequest, GovtDriver } from '../config/db.js'
+import { EmergencyRequest, GovtDriver, PrivateDriver } from '../config/db.js'
 import { uploadImage } from '../config/cloudinary.js'
 import { sendVerificationCode } from '../services/emailService.js'
 import { canDriverReceiveDispatch } from '../utils/driverDispatch.js'
@@ -110,7 +110,7 @@ export async function acceptDriverEmergency(req, res, next) {
       const ROOMS = { police: 'police_channel', govtDriver: 'govt_drivers_channel' }
       const userRoom = id => `user:${id}`
       const emergencyRoom = id => `emergency:${id}`
-      io.to(ROOMS.police).emit('DRIVER_ASSIGNED', assignment)
+      io.to(ROOMS.police).to('hospital_channel').emit('DRIVER_ASSIGNED', assignment)
       if (emergency.userId) io.to(userRoom(emergency.userId.toString())).emit('DRIVER_ASSIGNED', assignment)
       io.to(emergencyRoom(emergency._id.toString())).emit('DRIVER_ASSIGNED', assignment)
     }
@@ -146,15 +146,22 @@ export async function updateDriverDutyStatus(req, res, next) {
     if (typeof req.body.fcmToken === 'string' && req.body.fcmToken.trim()) {
       updateObj.fcmToken = req.body.fcmToken.trim()
     }
-    const driver = await GovtDriver.findByIdAndUpdate(
+    let driver = await GovtDriver.findByIdAndUpdate(
       req.driver._id,
       { $set: updateObj },
       { returnDocument: 'after' }
     ).lean()
+    if (!driver) {
+      driver = await PrivateDriver.findByIdAndUpdate(
+        req.driver._id,
+        { $set: updateObj },
+        { returnDocument: 'after' }
+      ).lean()
+    }
     return res.json({
       success: true,
       message: `Duty status updated to ${isOnDuty ? 'ON DUTY' : 'OFF DUTY'}`,
-      data: { driver: driverPublic(driver), isOnDuty }
+      data: { driver: driver ? driverPublic(driver) : null, isOnDuty }
     })
   } catch (error) {
     next(error)
@@ -180,7 +187,7 @@ export async function updateDriverEmergencyStatus(req, res, next) {
     if (io) {
       const userRoom = id => `user:${id}`
       const payload = { emergencyId: emergency._id, status: emergency.status }
-      io.to('police_channel').emit('EMERGENCY_STATUS_UPDATED', payload)
+      io.to('police_channel').to('hospital_channel').emit('EMERGENCY_STATUS_UPDATED', payload)
       if (emergency.userId) io.to(userRoom(emergency.userId.toString())).emit('EMERGENCY_STATUS_UPDATED', payload)
     }
 

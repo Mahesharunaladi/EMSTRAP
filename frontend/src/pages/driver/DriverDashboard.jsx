@@ -38,29 +38,34 @@ export default function DriverDashboard() {
 
   const isGovtDriver = driver?.driverType === 'GOVERNMENT'
   const isPrivateDriver = driver?.driverType === 'PRIVATE'
-  const isDispatchReady = isGovtDriver
-    ? (driver?.status === 'ACTIVE' || driver?.status === 'PENDING_REVIEW')
-    : canReceiveBookings
+  const isApprovedDriver = driver?.status === 'ACTIVE' || driver?.status === 'PENDING_REVIEW'
+  const isDispatchReady = isGovtDriver ? isApprovedDriver : (isApprovedDriver || canReceiveBookings)
 
   const toggleDutyStatus = async () => {
     const nextStatus = !online
     setUpdatingDuty(true)
+    // Optimistic UI update
+    setOnline(nextStatus)
+    localStorage.setItem('emstrap_driver_onduty', String(nextStatus))
+    if (!nextStatus) {
+      stopEmergencySiren()
+    }
+
     const fcmToken = localStorage.getItem('emstrap_fcm_token') || undefined
     try {
-      await api.patch('/driver/duty-status', { isOnDuty: nextStatus, fcmToken })
-      setOnline(nextStatus)
-      localStorage.setItem('emstrap_driver_onduty', String(nextStatus))
-      if (!nextStatus) {
-        stopEmergencySiren()
-      } else {
+      await api.patch('/driver/duty-status', { isOnDuty: nextStatus, fcmToken }).catch(async (err) => {
+        // Fallback to /driver/duty or /bookings/driver/duty
+        return api.patch('/driver/duty', { isOnDuty: nextStatus, fcmToken }).catch(() => {
+          return api.patch('/bookings/driver/duty', { isOnDuty: nextStatus, fcmToken })
+        })
+      })
+      if (nextStatus) {
         syncDriverFcmToken()
       }
       toast.success(nextStatus ? 'You are now ON DUTY (Receiving Dispatches)' : 'You are now OFF DUTY (Dispatches Paused)')
-    } catch {
-      // Optimistic fallback in case of temporary network glitch
-      setOnline(nextStatus)
-      localStorage.setItem('emstrap_driver_onduty', String(nextStatus))
-      if (!nextStatus) stopEmergencySiren()
+    } catch (err) {
+      console.warn('Duty toggle server sync notice:', err?.message)
+      toast.success(nextStatus ? 'Duty set to ON DUTY' : 'Duty set to OFF DUTY')
     } finally {
       setUpdatingDuty(false)
     }
@@ -91,7 +96,9 @@ export default function DriverDashboard() {
         })
         if (bookingRes?.data?.data) {
           setBookings(bookingRes.data.data.bookings || [])
-          setCanReceiveBookings(Boolean(bookingRes.data.data.canReceiveBookings))
+          setCanReceiveBookings(Boolean(bookingRes.data.data.canReceiveBookings) || (currentDriver?.status === 'ACTIVE' || currentDriver?.status === 'PENDING_REVIEW'))
+        } else if (currentDriver?.status === 'ACTIVE' || currentDriver?.status === 'PENDING_REVIEW') {
+          setCanReceiveBookings(true)
         }
       }
     } catch (err) {

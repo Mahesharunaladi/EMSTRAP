@@ -4,7 +4,7 @@ import { uploadImage } from '../config/cloudinary.js'
 import { allowedOrigins } from '../config/allowedOrigins.js'
 import { canDriverReceiveDispatch } from '../utils/driverDispatch.js'
 
-export const ROOMS = { police: 'police_channel', govtDriver: 'govt_drivers_channel', privateDriver: 'private_drivers_channel' }
+export const ROOMS = { police: 'police_channel', govtDriver: 'govt_drivers_channel', privateDriver: 'private_drivers_channel', hospital: 'hospital_channel' }
 const userRoom = id => `user:${id}`
 const emergencyRoom = id => `emergency:${id}`
 const sosWindows = new Map()
@@ -120,6 +120,7 @@ export function registerSocketHandlers(io) {
         if (!driverRoomWatcher && driver) driverRoomWatcher = setInterval(syncDriverRoom, 30_000)
       }
       if (role === 'POLICE' || role === 'police') room = ROOMS.police
+      if (role === 'HOSPITAL' || role === 'hospital') room = ROOMS.hospital
       if (userId) socket.join(userRoom(String(userId)))
       if (emergencyId) socket.join(emergencyRoom(String(emergencyId)))
       if (room) socket.join(room)
@@ -129,6 +130,11 @@ export function registerSocketHandlers(io) {
     socket.on('join_police_room', () => {
       socket.join(ROOMS.police)
       socket.emit('room_joined', { room: ROOMS.police, success: true })
+    })
+
+    socket.on('join_hospital_room', () => {
+      socket.join(ROOMS.hospital)
+      socket.emit('room_joined', { room: ROOMS.hospital, success: true })
     })
 
     socket.on('driver_location_update', async ({ emergencyId, lat, lng, heading } = {}) => {
@@ -141,7 +147,7 @@ export function registerSocketHandlers(io) {
       if (!emergency) return
       const payload = { driverId: eligibleDriver._id, emergencyId, location }
       if (emergency.userId) io.to(userRoom(emergency.userId.toString())).emit('DRIVER_LOCATION_UPDATED', payload)
-      io.to(emergencyRoom(emergencyId)).to(ROOMS.police).emit('DRIVER_LOCATION_UPDATED', payload)
+      io.to(emergencyRoom(emergencyId)).to(ROOMS.police).to(ROOMS.hospital).emit('DRIVER_LOCATION_UPDATED', payload)
     })
 
     socket.on('user_location_update', async ({ emergencyId, lat, lng } = {}) => {
@@ -176,7 +182,7 @@ export function registerSocketHandlers(io) {
           incidentDetails: request.incidentDetails,
           userId: caller
         }
-        io.to(ROOMS.govtDriver).to(ROOMS.police).emit('NEW_EMERGENCY_ALERT', alert)
+        io.to(ROOMS.govtDriver).to(ROOMS.police).to(ROOMS.hospital).emit('NEW_EMERGENCY_ALERT', alert)
         io.emit('police_emergency_alert', alert)
         if (user) io.to(userRoom(user._id.toString())).emit('EMERGENCY_DISPATCH_RECEIVED', alert)
         socket.emit('emergency:created', { success: true, data: alert })
@@ -194,7 +200,7 @@ export function registerSocketHandlers(io) {
         const emergency = await EmergencyRequest.findOneAndUpdate({ _id: emergencyId, status: 'PENDING', assignedDriverId: { $exists: false } }, { $set: { status: 'ACCEPTED', assignedDriverId: eligibleDriver._id } }, { returnDocument: 'after' }).lean()
         if (!emergency) return socket.emit('socket_error', { message: 'Emergency is unavailable or already assigned' })
         const assignment = { emergencyId: emergency._id, userId: emergency.userId, status: emergency.status, driver: { id: eligibleDriver._id, name: eligibleDriver.name, phone: eligibleDriver.phone, selfie: eligibleDriver.selfie } }
-        io.to(ROOMS.police).emit('DRIVER_ASSIGNED', assignment)
+        io.to(ROOMS.police).to(ROOMS.hospital).emit('DRIVER_ASSIGNED', assignment)
         if (emergency.userId) io.to(userRoom(emergency.userId.toString())).emit('DRIVER_ASSIGNED', assignment)
         io.to(emergencyRoom(emergencyId)).emit('DRIVER_ASSIGNED', assignment)
       } catch { socket.emit('socket_error', { message: 'Unable to accept this emergency' }) }

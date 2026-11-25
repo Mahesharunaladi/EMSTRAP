@@ -100,18 +100,29 @@ export async function createBooking(req, res, next) {
     if (io) io.to('private_drivers_channel').emit('NEW_PRIVATE_BOOKING', payload)
 
     // Trigger High-Priority FCM Push Notification to ON DUTY Private Drivers
-    // Also include GovtDriver with driverType === 'PRIVATE' if saved under GovtDriver
     Promise.all([
-      PrivateDriver.find({ isOnDuty: true, fcmToken: { $exists: true, $ne: '' } }).select('fcmToken').lean().catch(() => []),
-      GovtDriver.find({ isOnDuty: true, driverType: 'PRIVATE', fcmToken: { $exists: true, $ne: '' } }).select('fcmToken').lean().catch(() => [])
+      PrivateDriver.find({
+        $or: [{ isOnDuty: true }, { isOnDuty: { $exists: false } }],
+        fcmToken: { $exists: true, $ne: null, $ne: '' }
+      }).select('fcmToken fcmTokens').lean().catch(() => []),
+      GovtDriver.find({
+        $or: [{ isOnDuty: true }, { isOnDuty: { $exists: false } }],
+        driverType: 'PRIVATE',
+        fcmToken: { $exists: true, $ne: null, $ne: '' }
+      }).select('fcmToken fcmTokens').lean().catch(() => [])
     ]).then(([pDrivers, gDrivers]) => {
-      const tokens = [...pDrivers, ...gDrivers].map(d => d.fcmToken).filter(Boolean)
-      if (tokens.length > 0) {
+      const tokens = []
+      ;[...pDrivers, ...gDrivers].forEach(d => {
+        if (d.fcmToken) tokens.push(d.fcmToken)
+        if (Array.isArray(d.fcmTokens)) tokens.push(...d.fcmTokens)
+      })
+      const uniqueTokens = [...new Set(tokens.filter(Boolean))]
+      if (uniqueTokens.length > 0) {
         sendFcmNotification({
-          tokens,
+          tokens: uniqueTokens,
           title: '🚑 NEW AMBULANCE BOOKING',
           body: 'New private ambulance ride request received.',
-          channelId: 'emstrap_private_booking_buzzer_v2',
+          channelId: 'emstrap_private_booking_buzzer_v3',
           sound: 'private_driver_alert',
           data: {
             bookingId: String(booking._id),
@@ -220,6 +231,29 @@ export async function acceptDriverBooking(req, res, next) {
         io.to(userRoom(booking.authUserId.toString())).emit('BOOKING_DRIVER_ASSIGNED', assignment)
         io.to(userRoom(booking.authUserId.toString())).emit('BOOKING_DRIVER_LOCATION_UPDATED', { bookingId: booking._id, driverId: driver._id, location: initialLocation })
       }
+    }
+
+    // Send FCM push to User notifying ambulance assigned
+    if (booking.authUserId) {
+      User.findById(booking.authUserId).select('fcmToken fcmTokens').lean().then(userDoc => {
+        const uTokens = []
+        if (userDoc?.fcmToken) uTokens.push(userDoc.fcmToken)
+        if (Array.isArray(userDoc?.fcmTokens)) uTokens.push(...userDoc.fcmTokens)
+        const validUTokens = [...new Set(uTokens.filter(Boolean))]
+        if (validUTokens.length > 0) {
+          sendFcmNotification({
+            tokens: validUTokens,
+            title: '🚑 Ambulance Assigned — Driver on the way!',
+            body: `${driver.name || 'Private Ambulance Unit'} has accepted your booking and is en route.`,
+            channelId: 'emstrap_private_booking_buzzer_v3',
+            sound: 'private_driver_alert',
+            data: {
+              bookingId: String(booking._id),
+              type: 'BOOKING_ASSIGNED',
+            }
+          }).catch(() => {})
+        }
+      }).catch(() => {})
     }
     res.json({ success: true, message: 'Booking accepted', data: assignment })
   } catch (error) { next(error) }

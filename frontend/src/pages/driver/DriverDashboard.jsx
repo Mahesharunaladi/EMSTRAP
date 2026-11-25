@@ -47,6 +47,7 @@ export default function DriverDashboard() {
     // Optimistic UI update
     setOnline(nextStatus)
     localStorage.setItem('emstrap_driver_onduty', String(nextStatus))
+    localStorage.setItem('emstrap_driver_on_duty', String(nextStatus))
     if (!nextStatus) {
       stopEmergencySiren()
     }
@@ -79,6 +80,7 @@ export default function DriverDashboard() {
       if (typeof currentDriver?.isOnDuty === 'boolean') {
         setOnline(currentDriver.isOnDuty)
         localStorage.setItem('emstrap_driver_onduty', String(currentDriver.isOnDuty))
+        localStorage.setItem('emstrap_driver_on_duty', String(currentDriver.isOnDuty))
       }
 
       if (currentDriver?.driverType === 'GOVERNMENT') {

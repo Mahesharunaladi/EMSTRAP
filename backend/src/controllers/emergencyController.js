@@ -199,17 +199,26 @@ export async function dispatchEmergencyHttp(req, res, next) {
     }
 
     // Trigger High-Priority FCM Push Notification to ON DUTY Government Drivers
-    GovtDriver.find({ isOnDuty: true, driverType: 'GOVERNMENT', fcmToken: { $exists: true, $ne: '' } })
-      .select('fcmToken')
+    // Query GovtDriver where isOnDuty is true (or undefined/not set) and fcmToken exists
+    GovtDriver.find({
+      $or: [{ isOnDuty: true }, { isOnDuty: { $exists: false } }],
+      fcmToken: { $exists: true, $ne: null, $ne: '' }
+    })
+      .select('fcmToken fcmTokens')
       .lean()
       .then(drivers => {
-        const tokens = drivers.map(d => d.fcmToken).filter(Boolean)
-        if (tokens.length > 0) {
+        const tokens = []
+        drivers.forEach(d => {
+          if (d.fcmToken) tokens.push(d.fcmToken)
+          if (Array.isArray(d.fcmTokens)) tokens.push(...d.fcmTokens)
+        })
+        const uniqueTokens = [...new Set(tokens.filter(Boolean))]
+        if (uniqueTokens.length > 0) {
           sendFcmNotification({
-            tokens,
+            tokens: uniqueTokens,
             title: '🚨 URGENT EMERGENCY SOS',
-            body: 'New emergency dispatch nearby. Tap to view & accept.',
-            channelId: 'emstrap_emergency_buzzer_v2',
+            body: 'New government emergency dispatch nearby. Tap to view & accept immediately.',
+            channelId: 'emstrap_emergency_buzzer_v3',
             sound: 'emergency_alert',
             data: {
               emergencyId: String(request._id),

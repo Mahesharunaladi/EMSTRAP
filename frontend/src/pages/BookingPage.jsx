@@ -1,3 +1,4 @@
+import BookingMapPicker from '../components/BookingMapPicker'
 import { Ambulance, ArrowLeft, ArrowRight, Baby, Check, HeartPulse, LoaderCircle, MapPin, Search, Scale, ShieldCheck } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
@@ -69,6 +70,7 @@ export default function BookingPage() {
   const [destination, setDestination] = useState('')
   const [destinationCoords, setDestinationCoords] = useState(null)
   const [destinationResults, setDestinationResults] = useState([])
+  const [activePinMode, setActivePinMode] = useState('destination')
   const [searchingDestination, setSearchingDestination] = useState(false)
   const [booking, setBooking] = useState(null)
   const [submitting, setSubmitting] = useState(false)
@@ -140,6 +142,33 @@ export default function BookingPage() {
 
   const distanceKm = routeCalculation?.distanceKm || 2.0
   const travelMinutes = routeCalculation?.minutes || 5
+
+  const handlePickMapLocation = useCallback(async (coords, mode) => {
+    try {
+      const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${coords.lat}&lon=${coords.lng}&zoom=18&addressdetails=1`, {
+        headers: { 'Accept': 'application/json' }
+      }).catch(() => null)
+      const data = response ? await response.json().catch(() => null) : null
+      const formattedAddress = data?.display_name || `${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`
+
+      if (mode === 'pickup') {
+        setPickup(formattedAddress)
+        setPickupCoords({ lat: coords.lat, lng: coords.lng, source: 'user-selected' })
+      } else {
+        setDestination(formattedAddress)
+        setDestinationCoords({ lat: coords.lat, lng: coords.lng, source: 'user-selected' })
+        setDestinationResults([])
+      }
+    } catch {
+      if (mode === 'pickup') {
+        setPickup(`${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`)
+        setPickupCoords({ lat: coords.lat, lng: coords.lng, source: 'user-selected' })
+      } else {
+        setDestination(`${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`)
+        setDestinationCoords({ lat: coords.lat, lng: coords.lng, source: 'user-selected' })
+      }
+    }
+  }, [])
 
   const searchDestination = async () => {
     const term = destination.trim()
@@ -219,13 +248,24 @@ export default function BookingPage() {
 
   return (
     <MobileAppShell>
-      <div className="flex items-center gap-3">
-        <Link to="/app" className="grid h-10 w-10 place-items-center rounded-full border border-slate-300 bg-white shadow-sm">
-          <ArrowLeft size={18} />
-        </Link>
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[.18em] text-blue-700">Non-emergency transport</p>
-          <h1 className="font-display text-2xl font-bold tracking-tight">Book an ambulance</h1>
+      <div className="pt-2">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-200/80 mb-3">
+          <Link to="/app" className="flex items-center">
+            <img src="/emstrap-logo.png" alt="EmSTraP" className="h-10 w-auto" />
+          </Link>
+          <span className="rounded-full bg-blue-100 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-blue-800 border border-blue-200">
+            Private Ambulance Portal
+          </span>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <Link to="/app" className="grid h-10 w-10 place-items-center rounded-full border border-slate-300 bg-white shadow-sm hover:bg-slate-50 transition">
+            <ArrowLeft size={18} />
+          </Link>
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[.18em] text-blue-700">Non-emergency transport</p>
+            <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900">Book an ambulance</h1>
+          </div>
         </div>
       </div>
 
@@ -317,6 +357,25 @@ export default function BookingPage() {
               </div>
             )}
 
+            {/* Interactive Map Location Picker */}
+            <div>
+              <div className="flex items-center justify-between mt-3 mb-1">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                  Interactive Route Map Picker
+                </span>
+                <span className="text-[10px] text-slate-400">
+                  Tap to set pin
+                </span>
+              </div>
+              <BookingMapPicker
+                pickupCoords={pickupCoords}
+                destinationCoords={destinationCoords}
+                activeMode={activePinMode}
+                onChangeMode={setActivePinMode}
+                onPickLocation={handlePickMapLocation}
+              />
+            </div>
+
             {destinationCoords && (
               <div className="mt-3 rounded-xl bg-blue-50 p-3 border border-blue-200 text-xs text-blue-900 flex items-center justify-between">
                 <div>
@@ -350,40 +409,90 @@ export default function BookingPage() {
             </span>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-3.5">
             {tiers.map(t => {
               const Icon = t.icon
               const isSelected = selectedTier === t.tier
               const dynamicPrice = Math.round(t.baseFare + (distanceKm * t.perKmRate))
 
+              // Match exact pastel colors from Services:
+              const toneStyles = {
+                STANDARD: {
+                  card: 'bg-blue-100/80 border-blue-200',
+                  iconBox: 'bg-white text-blue-700 shadow-xs',
+                  title: 'text-blue-950',
+                  sub: 'text-blue-700',
+                  desc: 'text-blue-900/80',
+                  tag: 'bg-white/90 text-blue-900 border border-blue-200/60',
+                  price: 'text-blue-950'
+                },
+                PREGNANCY: {
+                  card: 'bg-pink-100/80 border-pink-200',
+                  iconBox: 'bg-white text-pink-700 shadow-xs',
+                  title: 'text-pink-950',
+                  sub: 'text-pink-700',
+                  desc: 'text-pink-900/80',
+                  tag: 'bg-white/90 text-pink-900 border border-pink-200/60',
+                  price: 'text-pink-950'
+                },
+                ICU: {
+                  card: 'bg-amber-100/80 border-amber-200',
+                  iconBox: 'bg-white text-amber-700 shadow-xs',
+                  title: 'text-amber-950',
+                  sub: 'text-amber-800',
+                  desc: 'text-amber-900/80',
+                  tag: 'bg-white/90 text-amber-900 border border-amber-200/60',
+                  price: 'text-amber-950'
+                },
+                SPECIAL: {
+                  card: 'bg-purple-100/80 border-purple-200',
+                  iconBox: 'bg-white text-purple-700 shadow-xs',
+                  title: 'text-purple-950',
+                  sub: 'text-purple-700',
+                  desc: 'text-purple-900/80',
+                  tag: 'bg-white/90 text-purple-900 border border-purple-200/60',
+                  price: 'text-purple-950'
+                }
+              }[t.tier] || {
+                card: 'bg-slate-100 border-slate-200',
+                iconBox: 'bg-white text-slate-800',
+                title: 'text-slate-900',
+                sub: 'text-slate-600',
+                desc: 'text-slate-600',
+                tag: 'bg-white text-slate-700',
+                price: 'text-slate-900'
+              }
+
               return (
                 <button
                   key={t.tier}
                   onClick={() => setSelectedTier(t.tier)}
-                  className={`w-full rounded-2xl border-2 p-4 text-left transition ${isSelected ? 'border-slate-950 bg-white shadow-md' : 'border-slate-200 bg-white/70 hover:border-slate-300'}`}
+                  className={`w-full rounded-2xl border-2 p-4 text-left transition shadow-xs ${toneStyles.card} ${
+                    isSelected ? 'ring-2 ring-slate-950 border-slate-950 shadow-md scale-[1.01]' : 'hover:border-slate-400'
+                  }`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
-                      <span className="grid h-11 w-11 place-items-center rounded-xl bg-slate-100 text-slate-800">
-                        <Icon size={22} />
+                      <span className={`grid h-12 w-12 place-items-center rounded-2xl ${toneStyles.iconBox}`}>
+                        <Icon size={24} />
                       </span>
                       <div>
-                        <h3 className="font-display text-base font-bold text-slate-900">{t.name}</h3>
-                        <p className="text-[11px] text-slate-500 mt-0.5">Base ₹{t.baseFare} + ₹{t.perKmRate}/km</p>
+                        <h3 className={`font-display text-base font-bold ${toneStyles.title}`}>{t.name}</h3>
+                        <p className={`text-[11px] font-semibold ${toneStyles.sub} mt-0.5`}>Base ₹{t.baseFare} + ₹{t.perKmRate}/km</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-display text-lg font-black text-slate-950">₹{dynamicPrice}</p>
-                      <p className="text-[10px] text-slate-400">Fixed trip fare</p>
+                      <p className={`font-display text-xl font-black ${toneStyles.price}`}>₹{dynamicPrice}</p>
+                      <p className="text-[10px] font-semibold text-slate-500 uppercase">Per-km rate</p>
                     </div>
                   </div>
 
-                  <p className="mt-2 text-xs text-slate-600 leading-relaxed">{t.description}</p>
+                  <p className={`mt-2.5 text-xs ${toneStyles.desc} leading-relaxed`}>{t.description}</p>
 
-                  <div className="mt-3 flex flex-wrap gap-2 text-[10px] text-slate-600 font-medium">
+                  <div className="mt-3 flex flex-wrap gap-1.5 text-[10px] font-medium">
                     {t.features.map((feat, idx) => (
-                      <span key={idx} className="rounded-md bg-slate-100 px-2 py-0.5 flex items-center gap-1">
-                        <ShieldCheck size={11} className="text-emerald-600" /> {feat}
+                      <span key={idx} className={`rounded-lg px-2 py-0.5 flex items-center gap-1 ${toneStyles.tag}`}>
+                        <ShieldCheck size={11} className="text-emerald-600 shrink-0" /> {feat}
                       </span>
                     ))}
                   </div>

@@ -8,6 +8,7 @@ import policeRoutes from './routes/policeRoutes.js'
 import bookingRoutes from './routes/bookingRoutes.js'
 import emergencyRoutes from './routes/emergencyRoutes.js'
 import hospitalRoutes from './routes/hospitalRoutes.js'
+import notificationRoutes from './routes/notificationRoutes.js'
 import { corsOriginDelegate, isAllowedOrigin } from './config/allowedOrigins.js'
 
 const app = express()
@@ -37,6 +38,7 @@ app.use('/api/bookings', bookingRoutes)
 app.use('/api/police', policeRoutes)
 app.use('/api/emergency', emergencyRoutes)
 app.use('/api/hospital', hospitalRoutes)
+app.use('/api/notifications', notificationRoutes)
 
 app.use((error, _req, res, _next) => {
   console.error('[api]', error)

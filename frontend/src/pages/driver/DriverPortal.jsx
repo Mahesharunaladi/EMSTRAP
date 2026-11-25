@@ -31,15 +31,22 @@ export default function DriverPortal() {
     return localStorage.getItem('emstrap_driver_has_registered') === 'true' || localStorage.getItem('lastRole') === 'DRIVER' ? 'login' : 'login';
   }); const [stage, setStage] = useState('account'); const [pendingEmail, setPendingEmail] = useState(''); const [code, setCode] = useState(''); const [cameraOpen, setCameraOpen] = useState(false); const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', driverType: 'GOVERNMENT', governmentId: '' }); const [docs, setDocs] = useState({ selfie: null, license: null }); const [loading, setLoading] = useState(false)
 
-  // Driver App Reopen Behavior: Always show Driver Login page on fresh app open
+  // Driver App Reopen Behavior:
+  // If Driver is ON DUTY (isOnDuty === true), persist token and auto-login to Dashboard.
+  // If Driver was OFF DUTY (isOnDuty === false), clear session and require login on fresh launch.
   useState(() => {
     localStorage.setItem('lastRole', 'DRIVER')
-    // Ensure on fresh launch without an active session, driver is on login mode
+    const token = localStorage.getItem('emstrap_driver_token')
+    const isOnDuty = localStorage.getItem('emstrap_driver_onduty') === 'true' || localStorage.getItem('emstrap_driver_on_duty') === 'true'
     const activeSession = sessionStorage.getItem('emstrap_driver_session')
-    if (activeSession && localStorage.getItem('emstrap_driver_token')) {
+
+    if (token && (isOnDuty || activeSession)) {
       syncDriverFcmToken()
       navigate('/driver/dashboard', { replace: true })
     } else {
+      // Clear inactive/off-duty session so fresh launch starts at Login
+      localStorage.removeItem('emstrap_driver_token')
+      sessionStorage.removeItem('emstrap_driver_session')
       setMode('login')
     }
   })

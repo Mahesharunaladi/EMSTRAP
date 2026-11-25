@@ -205,11 +205,15 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun checkAndRequestPermissions() {
-        val permissions = arrayOf(
+        val permissions = mutableListOf(
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.ACCESS_COARSE_LOCATION,
             Manifest.permission.CAMERA
-        )
+        ).apply {
+            if (android.os.Build.VERSION.SDK_INT >= 33) {
+                add("android.permission.POST_NOTIFICATIONS")
+            }
+        }.toTypedArray()
         val missing = permissions.filter {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }

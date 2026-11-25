@@ -1,3 +1,5 @@
+import { sendFcmNotification } from '../services/fcmService.js'
+import { User } from '../config/db.js'
 import bcrypt from 'bcryptjs'
 import crypto from 'node:crypto'
 import jwt from 'jsonwebtoken'

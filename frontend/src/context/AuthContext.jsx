@@ -1,3 +1,4 @@
+import { initPushNotificationChannels, syncFcmTokenToServer } from '../utils/notificationChannels'
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import api from '../services/api'
 import { getItem, setItem, removeItem, clearAuthSession } from '../utils/persistentStorage'
@@ -79,6 +80,7 @@ export function AuthProvider({ children }) {
     }
 
     bootstrapAuth()
+    initPushNotificationChannels().catch(() => {})
     return () => { active = false }
   }, [])
 
@@ -231,6 +233,7 @@ export function AuthProvider({ children }) {
       if (currentUser?.currentLocation?.lat && currentUser?.currentLocation?.lng) {
         setCurrentLocation(currentUser.currentLocation)
       }
+      syncFcmTokenToServer().catch(() => {})
     }
     return data
   }
@@ -259,6 +262,7 @@ export function AuthProvider({ children }) {
       if (currentUser?.currentLocation?.lat && currentUser?.currentLocation?.lng) {
         setCurrentLocation(currentUser.currentLocation)
       }
+      syncFcmTokenToServer().catch(() => {})
     }
     sessionStorage.removeItem('emstrap_pending_verification')
     setPendingVerification(null)

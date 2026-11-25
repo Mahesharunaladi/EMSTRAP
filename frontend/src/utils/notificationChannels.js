@@ -1,16 +1,17 @@
 /**
  * Native Android & Web Notification Channel & Push Token Manager
  * - Registers versioned high-priority notification channels:
- *   1. emstrap_emergency_buzzer_v2 -> sound: emergency_alert (matches res/raw/emergency_alert.mp3)
- *   2. emstrap_private_booking_buzzer_v2 -> sound: private_driver_alert (matches res/raw/private_driver_alert.mp3)
- * - Persists and syncs driver FCM push token to backend via PATCH /api/driver/fcm-token
+ *   1. emstrap_emergency_buzzer_v3 -> sound: emergency_alert (matches res/raw/emergency_alert.mp3)
+ *   2. emstrap_private_booking_buzzer_v3 -> sound: private_driver_alert (matches res/raw/private_driver_alert.mp3)
+ * - Persists and syncs FCM push token to backend via POST /api/notifications/register-token
  */
 import api from '../services/api'
 import { playEmergencySiren, playBookingChime } from './audioPlayer'
+import toast from 'react-hot-toast'
 
 const PUSH_CHANNELS = [
   {
-    id: 'emstrap_emergency_buzzer_v2',
+    id: 'emstrap_emergency_buzzer_v3',
     name: 'Emergency SOS Dispatch',
     description: 'High-priority emergency alerts with custom siren klaxon buzzer',
     importance: 5, // IMPORTANCE_MAX
@@ -21,7 +22,7 @@ const PUSH_CHANNELS = [
     lightColor: '#ef4444',
   },
   {
-    id: 'emstrap_private_booking_buzzer_v2',
+    id: 'emstrap_private_booking_buzzer_v3',
     name: 'Private Ambulance Booking',
     description: 'High-priority ride requests with custom booking chime',
     importance: 5, // IMPORTANCE_MAX
@@ -45,25 +46,40 @@ export async function initPushNotificationChannels() {
         console.log(`[PushNotifications] Channel registered: ${channel.id} with sound: ${channel.sound}`)
       }
 
-      // Request permission & register for FCM token
-      const permResult = await PushNotifications.requestPermissions()
-      if (permResult.receive === 'granted') {
-        await PushNotifications.register()
+      // Check and request runtime notification permissions
+      let permResult = await PushNotifications.checkPermissions().catch(() => null)
+      if (permResult?.receive !== 'granted') {
+        permResult = await PushNotifications.requestPermissions().catch(() => null)
       }
 
-      PushNotifications.addListener('registration', token => {
+      if (permResult?.receive === 'granted') {
+        await PushNotifications.register().catch(e => console.warn('[PushNotifications] Register error:', e.message))
+      }
+
+      PushNotifications.addListener('registration', async token => {
         if (token?.value) {
+          console.log('[PushNotifications] Device FCM token obtained:', token.value)
           localStorage.setItem('emstrap_fcm_token', token.value)
-          syncDriverFcmToken(token.value)
+          localStorage.setItem('pending_fcm_token', token.value)
+          await syncFcmTokenToServer(token.value)
         }
+      })
+
+      PushNotifications.addListener('registrationError', err => {
+        console.warn('[PushNotifications] Registration error:', err)
       })
 
       PushNotifications.addListener('pushNotificationReceived', notification => {
         console.log('[PushNotifications] In-app notification received:', notification)
         const channelId = notification.data?.channelId || notification.channelId
-        if (channelId === 'emstrap_emergency_buzzer_v2' || notification.data?.type === 'EMERGENCY_SOS') {
+        const title = notification.title || notification.data?.title || 'EmSTraP Alert'
+        const body = notification.body || notification.data?.body || 'New ambulance update received.'
+
+        toast(`${title}: ${body}`, { icon: '🚨', duration: 7000 })
+
+        if (channelId === 'emstrap_emergency_buzzer_v3' || notification.data?.type === 'EMERGENCY_SOS' || notification.data?.type === 'EMERGENCY_ACCEPTED') {
           playEmergencySiren(true)
-        } else if (channelId === 'emstrap_private_booking_buzzer_v2' || notification.data?.type === 'PRIVATE_BOOKING') {
+        } else if (channelId === 'emstrap_private_booking_buzzer_v3' || notification.data?.type === 'PRIVATE_BOOKING' || notification.data?.type === 'BOOKING_ASSIGNED') {
           playBookingChime()
         }
       })
@@ -72,11 +88,10 @@ export async function initPushNotificationChannels() {
     }
   }
 
-  // 2. If running inside native Android WebView with JavaScript Interface
-  if (window.AndroidBridge?.createNotificationChannels) {
-    try {
-      window.AndroidBridge.createNotificationChannels(JSON.stringify(PUSH_CHANNELS))
-    } catch (_) {}
+  // 2. Sync any pending FCM token
+  const pendingToken = localStorage.getItem('pending_fcm_token') || localStorage.getItem('emstrap_fcm_token')
+  if (pendingToken) {
+    syncFcmTokenToServer(pendingToken)
   }
 
   // 3. Browser Desktop Notification API permission request
@@ -87,16 +102,41 @@ export async function initPushNotificationChannels() {
   }
 }
 
-export async function syncDriverFcmToken(fcmTokenOverride) {
+export async function syncFcmTokenToServer(fcmTokenOverride) {
   try {
-    const token = fcmTokenOverride || localStorage.getItem('emstrap_fcm_token')
+    const token = fcmTokenOverride || localStorage.getItem('pending_fcm_token') || localStorage.getItem('emstrap_fcm_token')
     if (!token) return
-    const driverToken = localStorage.getItem('emstrap_driver_token')
-    if (!driverToken) return
 
-    await api.patch('/driver/fcm-token', { fcmToken: token })
-    console.log('[FCM] Driver token synced with server.')
+    let userObj = null
+    try {
+      const stored = localStorage.getItem('emstrap_user_data')
+      if (stored) userObj = JSON.parse(stored)
+    } catch (_) {}
+
+    const role = localStorage.getItem('emstrap_role') || (localStorage.getItem('lastRole') === 'DRIVER' ? 'GOVT_DRIVER' : 'USER')
+    const isOnDuty = localStorage.getItem('emstrap_driver_onduty') !== 'false'
+
+    await api.post('/notifications/register-token', {
+      fcmToken: token,
+      token,
+      role,
+      userId: userObj?._id || userObj?.id,
+      isOnDuty
+    })
+
+    localStorage.removeItem('pending_fcm_token')
+    console.log('[FCM] Token registered with server for role:', role)
   } catch (err) {
     console.warn('[FCM] Token sync warning:', err.message)
+  }
+}
+
+export async function syncDriverFcmToken(fcmTokenOverride) {
+  const token = fcmTokenOverride || localStorage.getItem('emstrap_fcm_token')
+  if (token) {
+    localStorage.setItem('emstrap_fcm_token', token)
+    await syncFcmTokenToServer(token)
+    // Also update driver-specific route
+    api.patch('/driver/fcm-token', { fcmToken: token }).catch(() => {})
   }
 }

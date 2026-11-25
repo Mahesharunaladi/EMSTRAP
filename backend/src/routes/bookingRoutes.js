@@ -7,6 +7,7 @@ import { rateLimit } from '../middlewares/rateLimit.js'
 
 const router = Router()
 router.get('/mine', authenticate, getMyBookings)
+router.get('/user/my-bookings', authenticate, getMyBookings)
 router.post('/', authenticate, rateLimit({ windowMs: 15 * 60 * 1000, max: 6 }), createBooking)
 router.patch('/driver/duty', authenticateDriver, updateDriverDutyStatus)
 router.patch('/driver/duty-status', authenticateDriver, updateDriverDutyStatus)

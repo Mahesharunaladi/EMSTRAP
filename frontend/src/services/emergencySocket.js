@@ -166,3 +166,28 @@ export function joinPoliceRoom(onAlert, onAssignment, onDriverLocation, onUserLo
   }
 }
 export function onUserLocationUpdated(callback) { connect(); socket.on('USER_LOCATION_UPDATED', callback); return () => socket.off('USER_LOCATION_UPDATED', callback) }
+
+
+export function joinBookingRoom(bookingId) {
+  if (!bookingId) return () => {}
+  connect()
+  const emitJoin = () => {
+    socket.emit('join_booking_room', { bookingId })
+    socket.emit('join_room', { bookingId })
+  }
+  emitJoin()
+  socket.on('connect', emitJoin)
+  return () => socket.off('connect', emitJoin)
+}
+
+export function onBookingChatMessage(callback) {
+  connect()
+  socket.on('booking_chat_message', callback)
+  return () => socket.off('booking_chat_message', callback)
+}
+
+export function onBookingDriverCancelled(callback) {
+  connect()
+  socket.on('booking_driver_cancelled', callback)
+  return () => socket.off('booking_driver_cancelled', callback)
+}

@@ -1,7 +1,7 @@
 import BookingMapPicker from '../components/BookingMapPicker'
-import { Ambulance, ArrowLeft, ArrowRight, Baby, Check, HeartPulse, LoaderCircle, MapPin, Search, Scale, ShieldCheck } from 'lucide-react'
+import { Ambulance, ArrowLeft, ArrowRight, Baby, Check, HeartPulse, LoaderCircle, MapPin, Search, ShieldCheck, Wind } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import MobileAppShell from '../components/MobileAppShell'
 import { useAuth } from '../context/AuthContext'
@@ -42,25 +42,26 @@ const tiers = [
     description: 'Critical care transport with ventilator & advanced monitoring systems.',
     baseFare: 800,
     perKmRate: 60,
-    icon: Scale,
+    icon: HeartPulse,
     color: 'amber',
     features: ['Ventilator & defibrillator', 'Critical care doctor onboard', 'Cardiac monitoring']
   },
   {
-    name: 'Bariatric / Custom Transport',
+    name: 'Oxygen',
     tier: 'SPECIAL',
-    description: 'Specialized bariatric ramp, oxygen manifold & heavy-duty transport.',
+    description: 'Transport with continuous oxygen support',
     baseFare: 600,
     perKmRate: 45,
-    icon: HeartPulse,
+    icon: Wind,
     color: 'purple',
-    features: ['High-capacity ramp & lift', 'Continuous oxygen flow', 'Multi-paramedic team']
+    features: []
   },
 ]
 
 const coordinatesLabel = point => `${Number(point.lat).toFixed(6)}, ${Number(point.lng).toFixed(6)}`
 
 export default function BookingPage() {
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { currentLocation } = useAuth()
   const [selectedTier, setSelectedTier] = useState(() => tiers[0].tier)
@@ -237,8 +238,12 @@ export default function BookingPage() {
         distanceKm,
         estimatedFare: calculatedPrice
       })
-      setBooking(data.data.booking)
-      toast.success('Ambulance requested! Available private operators notified.')
+      const created = data.data.booking
+      setBooking(created)
+      toast.success('Ambulance requested! Redirecting to live tracking...')
+      if (created?._id) {
+        navigate(`/booking/active/${created._id}`, { replace: true })
+      }
     } catch (error) {
       toast.error(error.response?.data?.message || 'Unable to book ambulance right now.')
     } finally {
@@ -487,13 +492,7 @@ export default function BookingPage() {
 
                   <p className={`mt-2.5 text-xs ${toneStyles.desc} leading-relaxed`}>{t.description}</p>
 
-                  <div className="mt-3 flex flex-wrap gap-1.5 text-[10px] font-medium">
-                    {t.features.map((feat, idx) => (
-                      <span key={idx} className={`rounded-lg px-2 py-0.5 flex items-center gap-1 ${toneStyles.tag}`}>
-                        <ShieldCheck size={11} className="text-emerald-600 shrink-0" /> {feat}
-                      </span>
-                    ))}
-                  </div>
+
                 </button>
               )
             })}

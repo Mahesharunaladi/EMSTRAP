@@ -1,14 +1,15 @@
-import { Ambulance, Camera, CheckCircle2, ChevronLeft, ChevronRight, CircleUserRound, Eye, LocateFixed, MapPin, Navigation, Phone, PhoneCall, Radio, Siren, ShieldAlert, ShieldCheck, X } from 'lucide-react'
+import { Ambulance, Camera, CheckCircle2, ChevronLeft, ChevronRight, CircleUserRound, Eye, LocateFixed, MapPin, MessageSquare, Navigation, Phone, PhoneCall, Radio, Send, Siren, ShieldAlert, ShieldCheck, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import DriverAppShell from './DriverAppShell'
-import { playEmergencySiren, stopEmergencySiren, playBookingChime } from '../../utils/audioPlayer'
+import { playEmergencySiren, stopEmergencySiren, playBookingChime, stopBookingChime } from '../../utils/audioPlayer'
+import { setItem } from '../../utils/persistentStorage'
 import { triggerLocalBuzzerNotification, initPushNotificationChannels } from '../../utils/notificationChannels'
 import DriverCameraModal from './DriverCameraModal'
 import { verifyDriverFaceMatch } from '../../utils/faceMatcher'
 import api from '../../services/api'
-import { acceptEmergency, joinDriverRoom, onUserLocationUpdated, sendDriverLocation } from '../../services/emergencySocket'
+import { acceptEmergency, joinBookingRoom, joinDriverRoom, onBookingChatMessage, onUserLocationUpdated, sendDriverLocation } from '../../services/emergencySocket'
 import { syncDriverFcmToken } from '../../utils/notificationChannels'
 
 function coords(point) {
@@ -36,6 +37,12 @@ export default function DriverDashboard() {
   const [activePhotoIndex, setActivePhotoIndex] = useState(0)
   const [biometricModalOpen, setBiometricModalOpen] = useState(false)
   const [pendingAction, setPendingAction] = useState(null) // { type: 'EMERGENCY' } or { type: 'BOOKING', booking }
+  const [cancelModalBooking, setCancelModalBooking] = useState(null)
+  const [cancelReason, setCancelReason] = useState('Vehicle Issue')
+  const [cancellingRide, setCancellingRide] = useState(false)
+  const [chatDrawerOpen, setChatDrawerOpen] = useState(false)
+  const [chatText, setChatText] = useState('')
+  const [sendingChat, setSendingChat] = useState(false)
 
   const isGovtDriver = driver?.driverType === 'GOVERNMENT'
   const isPrivateDriver = driver?.driverType === 'PRIVATE'
@@ -49,6 +56,8 @@ export default function DriverDashboard() {
     setOnline(nextStatus)
     localStorage.setItem('emstrap_driver_onduty', String(nextStatus))
     localStorage.setItem('emstrap_driver_on_duty', String(nextStatus))
+    setItem('emstrap_driver_on_duty', String(nextStatus)).catch(() => {})
+    setItem('emstrap_driver_onduty', String(nextStatus)).catch(() => {})
     if (!nextStatus) {
       stopEmergencySiren()
     }
@@ -85,6 +94,8 @@ export default function DriverDashboard() {
         setOnline(currentDriver.isOnDuty)
         localStorage.setItem('emstrap_driver_onduty', String(currentDriver.isOnDuty))
         localStorage.setItem('emstrap_driver_on_duty', String(currentDriver.isOnDuty))
+        setItem('emstrap_driver_on_duty', String(currentDriver.isOnDuty)).catch(() => {})
+        setItem('emstrap_driver_onduty', String(currentDriver.isOnDuty)).catch(() => {})
       }
 
       if (currentDriver?.driverType === 'GOVERNMENT') {
@@ -263,7 +274,30 @@ export default function DriverDashboard() {
   }, [driver?.id, isGovtDriver, emergency?._id, emergency?.emergencyId, emergency?.status])
 
   // Live location sharing for private ambulance booking (Private Driver)
-  const activeBooking = useMemo(() => isPrivateDriver ? bookings.find(booking => ['ACCEPTED', 'STARTED'].includes(booking.status) && String(booking.assignedDriverId) === String(driver?.id)) || null : null, [isPrivateDriver, bookings, driver?.id])
+  const activeBooking = useMemo(() => isPrivateDriver ? bookings.find(booking => ['ACCEPTED', 'ON_THE_WAY', 'ARRIVED', 'STARTED'].includes(booking.status) && String(booking.assignedDriverId) === String(driver?.id)) || null : null, [isPrivateDriver, bookings, driver?.id])
+
+  useEffect(() => {
+    if (!activeBooking?._id) return undefined
+    const unsubRoom = joinBookingRoom(activeBooking._id)
+    const unsubChat = onBookingChatMessage(payload => {
+      if (String(payload?.bookingId) === String(activeBooking._id)) {
+        setBookings(current => current.map(item => {
+          if (String(item._id) !== String(activeBooking._id)) return item
+          const nextMessages = Array.isArray(payload.messages)
+            ? payload.messages
+            : [...(item.messages || []), payload.message].filter(Boolean)
+          return { ...item, messages: nextMessages }
+        }))
+        if (payload?.message?.senderRole === 'USER') {
+          toast(`Patient: ${payload.message.text}`, { icon: '💬' })
+        }
+      }
+    })
+    return () => {
+      unsubRoom()
+      unsubChat()
+    }
+  }, [activeBooking?._id])
 
   useEffect(() => {
     if (!driver?.id || !activeBooking) {
@@ -379,6 +413,7 @@ export default function DriverDashboard() {
   }
 
   const executeAcceptBooking = async (booking) => {
+    stopBookingChime()
     try {
       const { data } = await api.post(`/driver/bookings/${booking._id}/accept`)
       setBookings(current => [data.data.booking, ...current.filter(item => String(item._id) !== String(booking._id))])
@@ -391,6 +426,52 @@ export default function DriverDashboard() {
 
   async function acceptBooking(booking) {
     await executeAcceptBooking(booking)
+  }
+
+  async function declineIncomingBooking(booking) {
+    stopBookingChime()
+    try {
+      await api.patch(`/bookings/${booking._id}/cancel-by-driver`, { reason: 'Driver declined request' })
+      setBookings(current => current.filter(item => String(item._id) !== String(booking._id)))
+      toast.success('Booking declined')
+    } catch (error) {
+      setBookings(current => current.filter(item => String(item._id) !== String(booking._id)))
+    }
+  }
+
+  async function confirmCancelBooking() {
+    if (!cancelModalBooking) return
+    stopBookingChime()
+    setCancellingRide(true)
+    try {
+      await api.patch(`/bookings/${cancelModalBooking._id}/cancel-by-driver`, { reason: cancelReason })
+      setBookings(current => current.filter(item => String(item._id) !== String(cancelModalBooking._id)))
+      setCancelModalBooking(null)
+      setChatDrawerOpen(false)
+      toast.success('Ride cancelled. Booking re-dispatched to nearby drivers.')
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Unable to cancel booking')
+    } finally {
+      setCancellingRide(false)
+    }
+  }
+
+  async function sendDriverChatMessage(e, booking) {
+    e.preventDefault()
+    const trimmed = chatText.trim()
+    if (!trimmed) return
+    setSendingChat(true)
+    try {
+      const { data } = await api.post(`/bookings/${booking._id}/message`, { text: trimmed })
+      if (Array.isArray(data?.data?.messages)) {
+        setBookings(current => current.map(item => String(item._id) === String(booking._id) ? { ...item, messages: data.data.messages } : item))
+      }
+      setChatText('')
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to send message')
+    } finally {
+      setSendingChat(false)
+    }
   }
 
   async function updateBookingStatus(booking, status) {
@@ -663,7 +744,7 @@ export default function DriverDashboard() {
         <div className="flex items-center justify-between">
           <h2 className="font-display text-xl font-bold">Ambulance bookings</h2>
           <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700">
-            {bookings.filter(item => item.status === 'PENDING').length} new
+            {bookings.filter(item => ['PENDING', 'FINDING_AMBULANCE'].includes(item.status)).length} new
           </span>
         </div>
         {bookings.length ? (
@@ -691,10 +772,21 @@ export default function DriverDashboard() {
                   <span><b>Drop-off:</b> {booking.destination}<br />{booking.destinationLocation?.lat?.toFixed(5)}, {booking.destinationLocation?.lng?.toFixed(5)}</span>
                 </p>
               </div>
-              {booking.status === 'PENDING' ? (
-                <button onClick={() => acceptBooking(booking)} className="mt-4 w-full rounded-xl bg-slate-950 py-3 text-sm font-bold text-white shadow-md">
-                  Accept booking
-                </button>
+              {['PENDING', 'FINDING_AMBULANCE'].includes(booking.status) ? (
+                <div className="mt-4 grid grid-cols-2 gap-2.5">
+                  <button
+                    onClick={() => declineIncomingBooking(booking)}
+                    className="rounded-xl border border-red-200 bg-red-50 py-3 text-sm font-bold text-red-700 hover:bg-red-100 transition"
+                  >
+                    Decline / Cancel
+                  </button>
+                  <button
+                    onClick={() => acceptBooking(booking)}
+                    className="rounded-xl bg-slate-950 py-3 text-sm font-bold text-white shadow-md hover:bg-slate-800 transition"
+                  >
+                    Accept Ride
+                  </button>
+                </div>
               ) : (
                 <div className="mt-4 space-y-2">
                   {coords(booking.pickupLocation) && (
@@ -731,6 +823,58 @@ export default function DriverDashboard() {
                       View pickup-to-drop-off route
                     </a>
                   )}
+                  {/* Message Patient Drawer */}
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <button
+                      type="button"
+                      onClick={() => setChatDrawerOpen(o => !o)}
+                      className="flex w-full items-center justify-between text-xs font-bold text-slate-900"
+                    >
+                      <span className="flex items-center gap-2">
+                        <MessageSquare size={15} className="text-blue-600" />
+                        Message Patient ({booking.messages?.length || 0})
+                      </span>
+                      <span className="text-[11px] text-blue-600">{chatDrawerOpen ? 'Hide' : 'Open Chat'}</span>
+                    </button>
+                    {chatDrawerOpen && (
+                      <div className="mt-3 space-y-2 border-t border-slate-200 pt-2.5">
+                        <div className="max-h-40 space-y-2 overflow-y-auto px-1">
+                          {(booking.messages || []).length === 0 ? (
+                            <p className="py-3 text-center text-[11px] text-slate-400">No messages yet.</p>
+                          ) : (
+                            (booking.messages || []).map((m, idx) => {
+                              const isMe = m.senderRole === 'DRIVER'
+                              return (
+                                <div key={idx} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                                  <div className={`max-w-[85%] rounded-xl px-3 py-1.5 text-xs ${isMe ? 'bg-slate-950 text-white' : 'bg-white border border-slate-200 text-slate-900'}`}>
+                                    {m.text}
+                                  </div>
+                                  <span className="mt-0.5 text-[9px] text-slate-400">{m.senderName || (isMe ? 'You' : 'Patient')}</span>
+                                </div>
+                              )
+                            })
+                          )}
+                        </div>
+                        <form onSubmit={(e) => sendDriverChatMessage(e, booking)} className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={chatText}
+                            onChange={e => setChatText(e.target.value)}
+                            placeholder="Message patient..."
+                            className="flex-1 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 outline-none focus:border-blue-500"
+                          />
+                          <button
+                            type="submit"
+                            disabled={sendingChat || !chatText.trim()}
+                            className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-blue-600 text-white disabled:opacity-50"
+                          >
+                            <Send size={14} />
+                          </button>
+                        </form>
+                      </div>
+                    )}
+                  </div>
+
                   {booking.status === 'ACCEPTED' && (
                     <button onClick={() => updateBookingStatus(booking, 'STARTED')} className="w-full rounded-xl bg-red-600 py-3 text-sm font-bold text-white">
                       Start trip
@@ -739,6 +883,18 @@ export default function DriverDashboard() {
                   {booking.status === 'STARTED' && (
                     <button onClick={() => updateBookingStatus(booking, 'COMPLETED')} className="w-full rounded-xl bg-slate-950 py-3 text-sm font-bold text-white">
                       Complete trip
+                    </button>
+                  )}
+                  {['ACCEPTED', 'ON_THE_WAY', 'STARTED'].includes(booking.status) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCancelReason('Vehicle Issue')
+                        setCancelModalBooking(booking)
+                      }}
+                      className="w-full rounded-xl border border-red-300 bg-red-50 py-2.5 text-xs font-bold text-red-700 hover:bg-red-100 transition"
+                    >
+                      Cancel Ride
                     </button>
                   )}
                 </div>
@@ -753,6 +909,55 @@ export default function DriverDashboard() {
           </div>
         )}
       </section>
+    )}
+
+    {cancelModalBooking && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-xs">
+        <div className="w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-display text-lg font-bold text-slate-900">Cancel Private Ride?</h3>
+            <button onClick={() => setCancelModalBooking(null)} className="rounded-full p-1 text-slate-500 hover:bg-slate-100">
+              <X size={18} />
+            </button>
+          </div>
+          <p className="text-xs text-slate-600">
+            Select a reason. The booking will be re-dispatched immediately to other on-duty private drivers.
+          </p>
+          <div className="space-y-2">
+            {['Vehicle Issue', 'Traffic / Route Blocked', 'Unable to Reach Pickup'].map(reason => (
+              <button
+                key={reason}
+                type="button"
+                onClick={() => setCancelReason(reason)}
+                className={`w-full rounded-xl border px-3.5 py-2.5 text-left text-xs font-bold transition ${
+                  cancelReason === reason
+                    ? 'border-red-600 bg-red-50 text-red-800'
+                    : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                {reason}
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setCancelModalBooking(null)}
+              className="rounded-xl border border-slate-300 py-2.5 text-xs font-bold text-slate-700"
+            >
+              Keep Ride
+            </button>
+            <button
+              type="button"
+              disabled={cancellingRide}
+              onClick={confirmCancelBooking}
+              className="rounded-xl bg-red-600 py-2.5 text-xs font-bold text-white shadow hover:bg-red-700 disabled:opacity-50"
+            >
+              {cancellingRide ? 'Cancelling…' : 'Confirm Cancel'}
+            </button>
+          </div>
+        </div>
+      </div>
     )}
 
     <Link to="/driver/profile" className="mt-5 flex items-center justify-center gap-2 text-sm font-bold text-slate-600">

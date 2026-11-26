@@ -473,10 +473,10 @@ export default function PoliceDashboard() {
                               setActivePhotoIndex(0)
                               setFullViewModalOpen(true)
                             }}
-                            className="flex items-center gap-1 rounded-lg bg-red-600/10 px-2 py-0.5 text-[11px] font-bold text-red-700 hover:bg-red-600/20 transition"
+                            className="flex items-center gap-1.5 rounded-xl bg-red-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-red-700 transition"
                           >
-                            <Camera size={12} />
-                            <span>View Full Gallery ({(emergency.incidentImage ? 1 : 0) + evidenceItems.length})</span>
+                            <Camera size={14} />
+                            <span>Full View Evidence ({(emergency.incidentImage ? 1 : 0) + evidenceItems.length})</span>
                           </button>
                         </div>
                         <div className="flex flex-wrap gap-2">
@@ -567,6 +567,113 @@ export default function PoliceDashboard() {
           </aside>
         </div>
       </div>
+
+
+      {/* Sequential Full View Evidence Gallery Modal */}
+      {fullViewModalOpen && activeEmergencyForModal && (() => {
+        const photos = []
+        if (activeEmergencyForModal.incidentImage?.url || (typeof activeEmergencyForModal.incidentImage === 'string' && activeEmergencyForModal.incidentImage)) {
+          photos.push({
+            url: activeEmergencyForModal.incidentImage?.url || activeEmergencyForModal.incidentImage,
+            note: 'Initial SOS Report Photo',
+            uploader: activeEmergencyForModal.userId?.name || 'Citizen Reporter',
+            uploadedAt: activeEmergencyForModal.createdAt
+          })
+        }
+        const extra = activeEmergencyForModal.evidenceImages || activeEmergencyForModal.evidence || []
+        extra.forEach((img, i) => {
+          const url = typeof img === 'string' ? img : img?.url
+          if (url && !photos.some(p => p.url === url)) {
+            photos.push({
+              url,
+              note: img?.note || `Witness / Scene Evidence #${i + 1}`,
+              uploader: img?.uploaderName || img?.uploadedBy || 'Scene Witness / Reporter',
+              uploadedAt: img?.uploadedAt || activeEmergencyForModal.createdAt
+            })
+          }
+        })
+        if (!photos.length) return null
+        const safeIdx = Math.min(activePhotoIndex, photos.length - 1)
+        const current = photos[safeIdx]
+
+        return (
+          <div
+            role="dialog"
+            className="fixed inset-0 z-50 flex flex-col bg-slate-950/95 text-white backdrop-blur-md"
+            onClick={() => setFullViewModalOpen(false)}
+          >
+            <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3 pt-safe" onClick={e => e.stopPropagation()}>
+              <div className="min-w-0">
+                <p className="text-xs font-bold uppercase tracking-wider text-red-400">
+                  Evidence {safeIdx + 1} of {photos.length} · Incident #{String(activeEmergencyForModal._id).slice(-6)}
+                </p>
+                <p className="truncate text-xs text-slate-300">{current.note}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFullViewModalOpen(false)}
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/15 text-white hover:bg-white/25"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="relative flex flex-1 items-center justify-center overflow-hidden p-3" onClick={e => e.stopPropagation()}>
+              <img
+                src={current.url}
+                alt={current.note}
+                className="max-h-[70vh] w-full max-w-2xl rounded-2xl object-contain"
+              />
+              {photos.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setActivePhotoIndex((safeIdx - 1 + photos.length) % photos.length)}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 grid h-11 w-11 place-items-center rounded-full bg-black/60 text-white border border-white/20 hover:bg-black/80"
+                  >
+                    <ChevronLeft size={22} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActivePhotoIndex((safeIdx + 1) % photos.length)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 grid h-11 w-11 place-items-center rounded-full bg-black/60 text-white border border-white/20 hover:bg-black/80"
+                  >
+                    <ChevronRight size={22} />
+                  </button>
+                </>
+              )}
+            </div>
+
+            <div className="border-t border-slate-800 bg-slate-900/90 px-4 py-3 pb-safe text-xs space-y-1.5" onClick={e => e.stopPropagation()}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-bold text-white">Uploader: {current.uploader}</span>
+                <span className="text-slate-400">
+                  {current.uploadedAt ? new Date(current.uploadedAt).toLocaleString() : ''}
+                </span>
+              </div>
+              {(activeEmergencyForModal.incidentDetails || activeEmergencyForModal.description) && (
+                <p className="text-slate-300 leading-relaxed break-words">
+                  <b>Incident Notes:</b> {activeEmergencyForModal.incidentDetails || activeEmergencyForModal.description}
+                </p>
+              )}
+              {photos.length > 1 && (
+                <div className="flex gap-2 overflow-x-auto pt-1 pb-1">
+                  {photos.map((p, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setActivePhotoIndex(i)}
+                      className={`shrink-0 rounded-lg overflow-hidden border-2 ${i === safeIdx ? 'border-red-500' : 'border-transparent opacity-60'}`}
+                    >
+                      <img src={p.url} alt="" className="h-12 w-12 object-cover" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Enlarged Photo Modal */}
       {modalImage && (

@@ -18,6 +18,7 @@ import DriverDashboard from './pages/driver/DriverDashboard'
 import DriverProfile from './pages/driver/DriverProfile'
 import PoliceDashboard from './pages/police/PoliceDashboard'
 import ActiveEmergencyPage from './pages/emergency/ActiveEmergencyPage'
+import ActiveBookingPage from './pages/booking/ActiveBookingPage'
 
 function RootRedirect() {
   const { user, loading, isAuthInitializing } = useAuth()
@@ -64,8 +65,19 @@ function PublicRoute({ children }) {
 }
 
 function DriverRoute({ children }) {
-  const hasSession = localStorage.getItem('emstrap_driver_token') || sessionStorage.getItem('emstrap_driver_session')
-  return hasSession ? children : <Navigate to="/driver" replace />
+  const { driverSession, isAuthInitializing } = useAuth()
+  if (isAuthInitializing) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-[#f7f7f5] text-sm font-semibold text-slate-500">
+        <div className="flex flex-col items-center gap-3">
+          <img src="/emstrap-logo.png" alt="EmSTraP" className="h-12 w-auto animate-pulse" />
+          <p>Restoring driver session…</p>
+        </div>
+      </div>
+    )
+  }
+  const hasSession = Boolean(driverSession?.token || localStorage.getItem('emstrap_driver_token') || sessionStorage.getItem('emstrap_driver_session'))
+  return hasSession ? children : <Navigate to="/driver/login" replace />
 }
 
 export default function App() {
@@ -93,16 +105,19 @@ export default function App() {
             <Route path="/app/account/rides" element={<AccountHistoryPage type="rides" />} />
             <Route path="/booking" element={<BookingPage />} />
             <Route path="/emergency/active/:emergencyId" element={<ActiveEmergencyPage />} />
+            <Route path="/booking/active/:bookingId" element={<ActiveBookingPage />} />
           </Route>
 
           {/* Driver Portal Routes */}
           <Route path="/driver" element={<DriverPortal />} />
+          <Route path="/driver/login" element={<DriverPortal />} />
           <Route path="/dashboard/driver" element={<Navigate to="/driver/dashboard" replace />} />
           <Route path="/driver/dashboard" element={<DriverRoute><DriverDashboard /></DriverRoute>} />
           <Route path="/driver/profile" element={<DriverRoute><DriverProfile /></DriverRoute>} />
 
           {/* Police Command Portal Routes */}
           <Route path="/emergency/active/:emergencyId" element={<ActiveEmergencyPage />} />
+          <Route path="/booking/active/:bookingId" element={<ActiveBookingPage />} />
           <Route path="/police" element={<PoliceDashboard />} />
           <Route path="/dashboard/police" element={<PoliceDashboard />} />
 

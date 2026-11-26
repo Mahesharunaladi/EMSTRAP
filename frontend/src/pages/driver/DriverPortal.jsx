@@ -1,10 +1,12 @@
 import { ArrowRight, Camera, CheckCircle2, FileCheck2, LockKeyhole, MailCheck, ShieldCheck } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import api from '../../services/api'
 import DriverCameraModal from './DriverCameraModal'
 import { syncDriverFcmToken } from '../../utils/notificationChannels'
+import { useAuth } from '../../context/AuthContext'
+import { setItem, removeItem } from '../../utils/persistentStorage'
 
 function fileToDataUrl(file) {
   return new Promise((resolve, reject) => {
@@ -27,31 +29,32 @@ function fileToDataUrl(file) {
   })
 }
 export default function DriverPortal() {
-  const navigate = useNavigate(); const [mode, setMode] = useState(() => {
+  const navigate = useNavigate();
+  const { driverSession, isAuthInitializing, saveDriverAuthSession } = useAuth(); const [mode, setMode] = useState(() => {
     return localStorage.getItem('emstrap_driver_has_registered') === 'true' || localStorage.getItem('lastRole') === 'DRIVER' ? 'login' : 'login';
   }); const [stage, setStage] = useState('account'); const [pendingEmail, setPendingEmail] = useState(''); const [code, setCode] = useState(''); const [cameraOpen, setCameraOpen] = useState(false); const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', driverType: 'GOVERNMENT', governmentId: '' }); const [docs, setDocs] = useState({ selfie: null, license: null }); const [loading, setLoading] = useState(false)
 
   // Driver App Reopen Behavior:
-  // If Driver is ON DUTY (isOnDuty === true), persist token and auto-login to Dashboard.
-  // If Driver was OFF DUTY (isOnDuty === false), clear session and require login on fresh launch.
-  useState(() => {
+  // Wait for @capacitor/preferences initialization in AuthContext before deciding route
+  useEffect(() => {
+    if (isAuthInitializing) return
     localStorage.setItem('lastRole', 'DRIVER')
-    const token = localStorage.getItem('emstrap_driver_token')
-    const isOnDuty = localStorage.getItem('emstrap_driver_onduty') === 'true' || localStorage.getItem('emstrap_driver_on_duty') === 'true'
+    const token = driverSession?.token || localStorage.getItem('emstrap_driver_token')
+    const isOnDuty = driverSession?.isOnDuty || localStorage.getItem('emstrap_driver_on_duty') === 'true' || localStorage.getItem('emstrap_driver_onduty') === 'true'
     const activeSession = sessionStorage.getItem('emstrap_driver_session')
 
     if (token && (isOnDuty || activeSession)) {
       syncDriverFcmToken()
       navigate('/driver/dashboard', { replace: true })
     } else {
-      // Clear inactive/off-duty session so fresh launch starts at Login
-      localStorage.removeItem('emstrap_driver_token')
+      removeItem('emstrap_driver_token').catch(() => {})
+      removeItem('emstrap_driver_data').catch(() => {})
       sessionStorage.removeItem('emstrap_driver_session')
       setMode('login')
     }
-  })
+  }, [isAuthInitializing, driverSession?.token, driverSession?.isOnDuty, navigate])
   const openDocuments = () => { setStage('documents'); setCameraOpen(true) }
-  async function submitAccount(event) { event.preventDefault(); setLoading(true); try { const endpoint = mode === 'login' ? '/driver/login' : '/driver/register'; const { data } = await api.post(endpoint, mode === 'login' ? { email: form.email, password: form.password } : form); if (mode === 'login') { if (data.data?.token) localStorage.setItem('emstrap_driver_token', data.data.token); sessionStorage.setItem('emstrap_driver_session', 'true'); data.data.driver.status === 'PENDING_DOCUMENTS' ? openDocuments() : navigate('/driver/dashboard') } else { if (data.data?.otpPreview) setCode(data.data.otpPreview); setPendingEmail(data.data.email); setStage('verify'); toast.success('Driver verification code sent') } } catch (error) { if (error.response?.data?.data?.requiresVerification) { setPendingEmail(error.response.data.data.email); setStage('verify') } else toast.error(error.response?.data?.message || 'Unable to continue') } finally { setLoading(false) } }
+  async function submitAccount(event) { event.preventDefault(); setLoading(true); try { const endpoint = mode === 'login' ? '/driver/login' : '/driver/register'; const { data } = await api.post(endpoint, mode === 'login' ? { email: form.email, password: form.password } : form); if (mode === 'login') { if (data.data?.token) await saveDriverAuthSession(data.data.token, data.data.driver, data.data.driver?.isOnDuty !== false); data.data.driver.status === 'PENDING_DOCUMENTS' ? openDocuments() : navigate('/driver/dashboard', { replace: true }) } else { if (data.data?.otpPreview) setCode(data.data.otpPreview); setPendingEmail(data.data.email); setStage('verify'); toast.success('Driver verification code sent') } } catch (error) { if (error.response?.data?.data?.requiresVerification) { setPendingEmail(error.response.data.data.email); setStage('verify') } else toast.error(error.response?.data?.message || 'Unable to continue') } finally { setLoading(false) } }
   async function verifyDriver(event) { event.preventDefault(); if (code.length !== 6) return toast.error('Enter the six-digit code from your email'); setLoading(true); try { const { data } = await api.post('/driver/verify-email', { email: pendingEmail, code }); if (data.data?.token) localStorage.setItem('emstrap_driver_token', data.data.token); sessionStorage.setItem('emstrap_driver_session', 'true'); openDocuments(); toast.success('Driver email verified') } catch (error) { toast.error(error.response?.data?.message || 'Unable to verify driver email') } finally { setLoading(false) } }
   async function resendCode() { try { const { data } = await api.post('/driver/resend-verification', { email: pendingEmail }); if (data?.data?.otpPreview) setCode(data.data.otpPreview); toast.success('A new verification code was sent') } catch (error) { toast.error(error.response?.data?.message || 'Unable to resend code') } }
   async function chooseLicense(event) { const file = event.target.files?.[0]; if (!file) return; if (!file.type.startsWith('image/')) return toast.error('Choose an image file'); try { const data = await fileToDataUrl(file); setDocs(current => ({ ...current, license: { preview: URL.createObjectURL(file), data } })) } catch (error) { toast.error(error.message || 'The license image could not be processed') } finally { event.target.value = '' } }

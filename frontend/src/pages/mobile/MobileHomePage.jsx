@@ -180,11 +180,26 @@ export default function MobileHomePage() {
       <span className="rounded-full bg-slate-950 px-3 py-2 text-xs font-bold text-white">Search</span>
     </button>
 
-    {activeBooking && <section className="mt-5 rounded-2xl border border-blue-200 bg-blue-50 p-4">
-      <div className="mb-3 flex items-center justify-between"><div><p className="text-xs font-bold uppercase tracking-wider text-blue-700">Your ambulance booking</p><h2 className="mt-1 text-sm font-bold">Ride updates</h2></div><Ambulance className="text-blue-700" size={21} /></div>
-      <BookedAmbulanceCard booking={activeBooking} />
-      <Link to="/app/activity" className="mt-3 flex items-center justify-center gap-1 text-xs font-bold text-blue-800">View all ride activity <ChevronRight size={15} /></Link>
-    </section>}
+    {activeBooking && (
+      <Link
+        to={`/booking/active/${activeBooking._id}`}
+        className="mt-5 flex items-center justify-between gap-3 rounded-2xl border border-blue-300 bg-blue-600 p-4 text-white shadow-lg shadow-blue-600/20 hover:bg-blue-700 transition"
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/20">
+            <Ambulance size={20} />
+          </span>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-100">Active Private Booking</span>
+              <span className="rounded-full bg-white/25 px-2 py-0.5 text-[9px] font-black uppercase">{activeBooking.status}</span>
+            </div>
+            <p className="mt-0.5 truncate text-sm font-bold">Tap to track ambulance & message driver</p>
+          </div>
+        </div>
+        <ChevronRight size={18} className="shrink-0" />
+      </Link>
+    )}
 
     {emergency && <section className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4">
       <div className="flex items-center gap-3">
@@ -311,6 +326,39 @@ export default function MobileHomePage() {
         }} className={`mobile-action-card ${className} text-left`}>
         <span className="mb-8 grid h-11 w-11 place-items-center rounded-2xl bg-white/80"><Icon size={22} /></span><span className="block text-sm font-bold">{title}</span><span className="mt-1 block text-xs leading-4 opacity-70">{description}</span><ArrowRight className="absolute bottom-4 right-4" size={16} />
       </button>)}</div>
+    </section>
+
+    <section className="mt-7">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="font-display text-xl font-bold">Your History</h2>
+        <Link to="/app/activity" className="text-xs font-bold text-slate-500">Activity</Link>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Link
+          to="/app/activity?tab=emergency"
+          className="flex flex-col justify-between rounded-2xl border border-red-200 bg-red-50/80 p-4 text-left shadow-xs hover:bg-red-100/70 transition"
+        >
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-white text-red-600 shadow-xs">
+            <Siren size={20} />
+          </span>
+          <div className="mt-3">
+            <span className="block text-sm font-bold text-red-950">Emergency History</span>
+            <span className="mt-0.5 block text-[11px] text-red-800/80">Free SOS & Govt ambulance logs</span>
+          </div>
+        </Link>
+        <Link
+          to="/app/activity?tab=bookings"
+          className="flex flex-col justify-between rounded-2xl border border-blue-200 bg-blue-50/80 p-4 text-left shadow-xs hover:bg-blue-100/70 transition"
+        >
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-white text-blue-600 shadow-xs">
+            <Ambulance size={20} />
+          </span>
+          <div className="mt-3">
+            <span className="block text-sm font-bold text-blue-950">Private Booking History</span>
+            <span className="mt-0.5 block text-[11px] text-blue-800/80">Scheduled rides & fare receipts</span>
+          </div>
+        </Link>
+      </div>
     </section>
 
     <section className="mt-7">

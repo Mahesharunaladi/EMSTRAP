@@ -110,7 +110,7 @@ export function registerSocketHandlers(io) {
       }
     }
 
-    socket.on('join_room', async ({ role, userId, emergencyId } = {}) => {
+    socket.on('join_room', async ({ role, userId, emergencyId, bookingId } = {}) => {
       let room = null
       if (['GOVT_DRIVER', 'PRIVATE_DRIVER'].includes(role)) {
         if (driver) {
@@ -123,8 +123,16 @@ export function registerSocketHandlers(io) {
       if (role === 'HOSPITAL' || role === 'hospital') room = ROOMS.hospital
       if (userId) socket.join(userRoom(String(userId)))
       if (emergencyId) socket.join(emergencyRoom(String(emergencyId)))
+      if (bookingId) socket.join(`booking_${String(bookingId)}`)
       if (room) socket.join(room)
-      socket.emit('room_joined', { room, success: Boolean(room || userId || emergencyId) })
+      socket.emit('room_joined', { room, success: Boolean(room || userId || emergencyId || bookingId) })
+    })
+
+    socket.on('join_booking_room', ({ bookingId } = {}) => {
+      if (bookingId) {
+        socket.join(`booking_${String(bookingId)}`)
+        socket.emit('room_joined', { room: `booking_${String(bookingId)}`, success: true })
+      }
     })
 
     socket.on('join_police_room', () => {

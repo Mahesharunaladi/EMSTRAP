@@ -93,7 +93,7 @@ const ambulanceBookingSchema = new mongoose.Schema({
   customerName: { type: String, trim: true, maxlength: 120 },
   customerPhone: { type: String, trim: true, maxlength: 30 },
   tier: { type: String, enum: ['STANDARD', 'PREGNANCY', 'ICU', 'SPECIAL'], required: true },
-  status: { type: String, enum: ['PENDING', 'ACCEPTED', 'STARTED', 'COMPLETED', 'CANCELLED', 'ACCEPT', 'START_TRIP', 'COMPLETE_TRIP'], default: 'PENDING', index: true },
+  status: { type: String, enum: ['PENDING', 'FINDING_AMBULANCE', 'ACCEPTED', 'ON_THE_WAY', 'ARRIVED', 'STARTED', 'COMPLETED', 'CANCELLED', 'CANCELLED_BY_DRIVER', 'ACCEPT', 'START_TRIP', 'COMPLETE_TRIP'], default: 'PENDING', index: true },
   pickup: { type: String, required: true, trim: true, maxlength: 500 },
   pickupLocation: { type: locationSchema, required: true },
   destination: { type: String, required: true, trim: true, maxlength: 500 },
@@ -105,6 +105,14 @@ const ambulanceBookingSchema = new mongoose.Schema({
   driverId: { type: mongoose.Schema.Types.ObjectId, ref: 'PrivateDriver' },
   price: Number,
   paymentStatus: { type: String, enum: ['PENDING', 'PAID', 'REFUNDED'], default: 'PENDING' },
+  cancelledByDrivers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'GovtDriver' }],
+  cancellationReason: { type: String, trim: true, maxlength: 200 },
+  messages: [{
+    senderRole: { type: String, enum: ['USER', 'DRIVER'], required: true },
+    senderName: { type: String, trim: true, maxlength: 120 },
+    text: { type: String, required: true, trim: true, maxlength: 1000 },
+    timestamp: { type: Date, default: Date.now },
+  }],
 }, { timestamps: true })
 ambulanceBookingSchema.index({ status: 1, createdAt: -1 })
 

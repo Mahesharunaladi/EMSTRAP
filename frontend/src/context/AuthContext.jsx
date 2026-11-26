@@ -7,6 +7,7 @@ const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
+  const [driverSession, setDriverSession] = useState(null)
   const [pendingVerification, setPendingVerification] = useState(() => {
     try { return JSON.parse(sessionStorage.getItem('emstrap_pending_verification')) || null } catch { return null }
   })
@@ -24,12 +25,49 @@ export function AuthProvider({ children }) {
 
     const bootstrapAuth = async () => {
       try {
-        const [savedToken, savedUserData] = await Promise.all([
+        const [
+          savedToken,
+          savedUserData,
+          savedRole,
+          savedDriverToken,
+          savedDriverData,
+          savedOnDuty,
+          savedOnDutyLegacy
+        ] = await Promise.all([
           getItem('emstrap_token'),
-          getItem('emstrap_user_data')
+          getItem('emstrap_user_data'),
+          getItem('emstrap_role'),
+          getItem('emstrap_driver_token'),
+          getItem('emstrap_driver_data'),
+          getItem('emstrap_driver_on_duty'),
+          getItem('emstrap_driver_onduty')
         ])
 
         if (!active) return
+
+        // Driver Session Persistence Lifecycle:
+        // If role is DRIVER (or driver token exists), check ON DUTY status
+        const onDutyFlag = savedOnDuty ?? savedOnDutyLegacy
+        if (savedRole === 'DRIVER' || savedDriverToken) {
+          if (onDutyFlag === 'false') {
+            // Driver went OFF DUTY before closing app -> wipe driver session so app routes to /driver/login
+            await Promise.all([
+              removeItem('emstrap_driver_token'),
+              removeItem('emstrap_driver_data')
+            ])
+            try { sessionStorage.removeItem('emstrap_driver_session') } catch (_) {}
+            setDriverSession(null)
+          } else if (onDutyFlag === 'true' && savedDriverToken) {
+            // Driver was ON DUTY -> hydrate session immediately without requiring login
+            try { localStorage.setItem('emstrap_driver_token', savedDriverToken) } catch (_) {}
+            try { sessionStorage.setItem('emstrap_driver_session', 'true') } catch (_) {}
+            let parsedDriver = null
+            try {
+              parsedDriver = typeof savedDriverData === 'string' ? JSON.parse(savedDriverData) : savedDriverData
+            } catch (_) {}
+            setDriverSession({ token: savedDriverToken, driver: parsedDriver, isOnDuty: true })
+          }
+        }
 
         if (savedToken && savedUserData) {
           try {
@@ -299,6 +337,27 @@ export function AuthProvider({ children }) {
     return data.data[type === 'billing' ? 'payments' : 'rides']
   }
 
+  const saveDriverAuthSession = async (token, driverObj, isOnDuty = true) => {
+    await Promise.all([
+      setItem('emstrap_driver_token', token),
+      setItem('emstrap_driver_data', JSON.stringify(driverObj || {})),
+      setItem('emstrap_role', 'DRIVER'),
+      setItem('emstrap_driver_on_duty', String(isOnDuty)),
+      setItem('emstrap_driver_onduty', String(isOnDuty)),
+    ])
+    try { sessionStorage.setItem('emstrap_driver_session', 'true') } catch (_) {}
+    setDriverSession({ token, driver: driverObj, isOnDuty })
+  }
+
+  const clearDriverAuthSession = async () => {
+    await Promise.all([
+      removeItem('emstrap_driver_token'),
+      removeItem('emstrap_driver_data'),
+    ])
+    try { sessionStorage.removeItem('emstrap_driver_session') } catch (_) {}
+    setDriverSession(null)
+  }
+
   const retryLocation = () => {
     try { sessionStorage.removeItem('emstrap_corelocation_unavailable') } catch (_) {}
     setLocationRetry(value => value + 1)
@@ -306,6 +365,9 @@ export function AuthProvider({ children }) {
 
   const value = useMemo(() => ({
     user,
+    driverSession,
+    saveDriverAuthSession,
+    clearDriverAuthSession,
     isAuthenticated: Boolean(user),
     loading,
     isAuthInitializing,
@@ -321,7 +383,7 @@ export function AuthProvider({ children }) {
     signOut,
     updateProfile,
     getHistory,
-  }), [user, loading, isAuthInitializing, pendingVerification, locationStatus, currentLocation])
+  }), [user, driverSession, loading, isAuthInitializing, pendingVerification, locationStatus, currentLocation])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

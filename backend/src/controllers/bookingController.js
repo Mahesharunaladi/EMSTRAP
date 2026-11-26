@@ -1,4 +1,4 @@
-import { AmbulanceBooking, BookingUser, GovtDriver, PrivateDriver } from '../config/db.js'
+import { AmbulanceBooking, BookingUser, GovtDriver, PrivateDriver, User } from '../config/db.js'
 import { canDriverReceiveDispatch } from '../utils/driverDispatch.js'
 import { sendFcmNotification } from '../services/fcmService.js'
 
@@ -15,7 +15,7 @@ export const TIER_CONFIG = {
   STANDARD: { baseFare: 250, perKmRate: 25, label: 'Standard Transport' },
   PREGNANCY: { baseFare: 400, perKmRate: 35, label: 'Maternity Support' },
   ICU: { baseFare: 800, perKmRate: 60, label: 'ICU / Advanced Life Support' },
-  SPECIAL: { baseFare: 600, perKmRate: 45, label: 'Bariatric / Custom' }
+  SPECIAL: { baseFare: 600, perKmRate: 45, label: 'Oxygen' }
 }
 
 const driverRooms = ['govt_drivers_channel', 'private_drivers_channel']
@@ -53,6 +53,10 @@ function publicBooking(booking) {
     assignedDriverType: booking.assignedDriverType, createdAt: booking.createdAt,
     price: booking.price, totalFare: booking.price, estimatedFare: booking.price,
     distanceKm: booking.distanceKm,
+    customerName: booking.customerName,
+    customerPhone: booking.customerPhone,
+    messages: booking.messages || [],
+    cancelledByDrivers: booking.cancelledByDrivers || [],
   }
 }
 
@@ -194,8 +198,8 @@ export async function getDriverBookings(req, res, next) {
     }
     const bookings = await AmbulanceBooking.find({
       $or: [
-        { status: 'PENDING', assignedDriverId: null },
-        { assignedDriverId: req.driver._id, status: { $in: activeBookingStatuses } },
+        { status: { $in: ['PENDING', 'FINDING_AMBULANCE'] }, assignedDriverId: null, cancelledByDrivers: { $ne: req.driver._id } },
+        { assignedDriverId: req.driver._id, status: { $in: ['ACCEPTED', 'ON_THE_WAY', 'ARRIVED', 'STARTED'] } },
       ],
     }).sort({ createdAt: -1 }).limit(20).lean()
 
@@ -217,7 +221,7 @@ export async function acceptDriverBooking(req, res, next) {
     
     const initialLocation = driver.currentLocation || { lat: 12.9716, lng: 77.5946, source: 'driver-accepted', updatedAt: new Date() }
     const booking = await AmbulanceBooking.findOneAndUpdate(
-      { _id: req.params.bookingId, status: 'PENDING', assignedDriverId: null },
+      { _id: req.params.bookingId, status: { $in: ['PENDING', 'FINDING_AMBULANCE'] }, assignedDriverId: null },
       { $set: { status: 'ACCEPTED', assignedDriverId: driver._id, assignedDriverType: 'PRIVATE', driverLocation: initialLocation } },
       { returnDocument: 'after', runValidators: true },
     ).lean()
@@ -229,7 +233,9 @@ export async function acceptDriverBooking(req, res, next) {
       io.to('private_drivers_channel').emit('BOOKING_ASSIGNED', { booking: publicBooking(booking), driver: { id: driver._id } })
       if (booking.authUserId) {
         io.to(userRoom(booking.authUserId.toString())).emit('BOOKING_DRIVER_ASSIGNED', assignment)
+        io.to(`booking_${booking._id}`).emit('BOOKING_DRIVER_ASSIGNED', assignment)
         io.to(userRoom(booking.authUserId.toString())).emit('BOOKING_DRIVER_LOCATION_UPDATED', { bookingId: booking._id, driverId: driver._id, location: initialLocation })
+        io.to(`booking_${booking._id}`).emit('BOOKING_DRIVER_LOCATION_UPDATED', { bookingId: booking._id, driverId: driver._id, location: initialLocation })
       }
     }
 
@@ -271,7 +277,10 @@ export async function updateDriverBookingStatus(req, res, next) {
     if (!booking) return res.status(409).json({ success: false, message: 'Booking status has changed or is not assigned to this driver', data: null })
     const payload = publicBooking(booking)
     const io = req.app.get('io')
-    if (io && booking.authUserId) io.to(userRoom(booking.authUserId.toString())).emit('BOOKING_STATUS_UPDATED', payload)
+    if (io) {
+      io.to(`booking_${booking._id}`).emit('BOOKING_STATUS_UPDATED', payload)
+      if (booking.authUserId) io.to(userRoom(booking.authUserId.toString())).emit('BOOKING_STATUS_UPDATED', payload)
+    }
     res.json({ success: true, message: 'Booking status updated', data: { booking: payload } })
   } catch (error) { next(error) }
 }
@@ -290,5 +299,191 @@ export async function updateDriverBookingLocation(req, res, next) {
     const io = req.app.get('io')
     if (io && booking.authUserId) io.to(userRoom(booking.authUserId.toString())).emit('BOOKING_DRIVER_LOCATION_UPDATED', payload)
     res.json({ success: true, message: 'Driver location updated', data: payload })
+  } catch (error) { next(error) }
+}
+
+
+export async function getBookingById(req, res, next) {
+  try {
+    const booking = await AmbulanceBooking.findById(req.params.bookingId).lean()
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Booking not found', data: null })
+    }
+
+    let driver = null
+    if (booking.assignedDriverId) {
+      driver = await GovtDriver.findById(booking.assignedDriverId).select('name phone driverType selfie currentLocation vehicleNumber').lean()
+        || await PrivateDriver.findById(booking.assignedDriverId).select('name phone driverType selfie currentLocation vehicleNumber').lean()
+    }
+
+    return res.json({
+      success: true,
+      message: 'Booking details',
+      data: {
+        booking: {
+          ...publicBooking(booking),
+          driver: driver ? {
+            id: driver._id,
+            name: driver.name,
+            phone: driver.phone,
+            driverType: driver.driverType || 'PRIVATE',
+            vehicleNumber: driver.vehicleNumber || null,
+            photo: driver.selfie?.url || null,
+            currentLocation: driver.currentLocation || null,
+          } : null,
+        }
+      }
+    })
+  } catch (error) { next(error) }
+}
+
+export async function sendBookingMessage(req, res, next) {
+  try {
+    const text = typeof req.body.text === 'string' ? req.body.text.trim() : ''
+    if (!text) {
+      return res.status(400).json({ success: false, message: 'Message text is required', data: null })
+    }
+
+    const isDriver = Boolean(req.driver?._id)
+    const senderRole = isDriver ? 'DRIVER' : 'USER'
+    const senderName = isDriver ? (req.driver.name || 'Private Driver') : (req.user?.name || 'Patient')
+
+    const msgObj = {
+      senderRole,
+      senderName,
+      text: text.slice(0, 1000),
+      timestamp: new Date(),
+    }
+
+    const booking = await AmbulanceBooking.findByIdAndUpdate(
+      req.params.bookingId,
+      { $push: { messages: msgObj } },
+      { returnDocument: 'after', runValidators: true }
+    ).lean()
+
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Booking not found', data: null })
+    }
+
+    const io = req.app.get('io')
+    if (io) {
+      const eventPayload = {
+        bookingId: String(booking._id),
+        message: booking.messages[booking.messages.length - 1] || msgObj,
+        messages: booking.messages || [],
+      }
+      io.to(`booking_${booking._id}`).emit('booking_chat_message', eventPayload)
+      if (booking.authUserId) {
+        io.to(userRoom(booking.authUserId.toString())).emit('booking_chat_message', eventPayload)
+      }
+      if (booking.assignedDriverId) {
+        io.to(userRoom(booking.assignedDriverId.toString())).emit('booking_chat_message', eventPayload)
+      }
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: 'Message sent',
+      data: {
+        message: booking.messages[booking.messages.length - 1] || msgObj,
+        messages: booking.messages || [],
+      }
+    })
+  } catch (error) { next(error) }
+}
+
+export async function cancelBookingByDriver(req, res, next) {
+  try {
+    const reason = typeof req.body.reason === 'string' ? req.body.reason.trim() : 'Driver unavailable'
+    const bookingId = req.params.bookingId
+    const driverId = req.driver._id
+
+    // Allow cancelling either an accepted booking assigned to this driver, or declining a PENDING/FINDING_AMBULANCE one
+    const existing = await AmbulanceBooking.findById(bookingId).lean()
+    if (!existing) {
+      return res.status(404).json({ success: false, message: 'Booking not found', data: null })
+    }
+
+    if (existing.status === 'COMPLETED' || existing.status === 'CANCELLED') {
+      return res.status(409).json({ success: false, message: 'Cannot cancel a completed or already cancelled booking', data: null })
+    }
+
+    const isAssignedToMe = existing.assignedDriverId && String(existing.assignedDriverId) === String(driverId)
+    const isPending = ['PENDING', 'FINDING_AMBULANCE'].includes(existing.status) && !existing.assignedDriverId
+
+    if (!isAssignedToMe && !isPending) {
+      return res.status(403).json({ success: false, message: 'This booking is assigned to another driver', data: null })
+    }
+
+    // Check if any other private drivers are online/on-duty
+    const otherDriversCount = await GovtDriver.countDocuments({
+      _id: { $ne: driverId, $nin: existing.cancelledByDrivers || [] },
+      driverType: 'PRIVATE',
+      $or: [{ isOnDuty: true }, { isOnDuty: { $exists: false } }]
+    }).catch(() => 1)
+
+    const nextStatus = 'FINDING_AMBULANCE'
+
+    const updated = await AmbulanceBooking.findByIdAndUpdate(
+      bookingId,
+      {
+        $set: {
+          status: nextStatus,
+          assignedDriverId: null,
+          assignedDriverType: null,
+          driverLocation: null,
+          cancellationReason: reason,
+        },
+        $addToSet: { cancelledByDrivers: driverId },
+      },
+      { returnDocument: 'after', runValidators: true }
+    ).lean()
+
+    const payload = publicBooking(updated)
+    const io = req.app.get('io')
+    if (io) {
+      // Notify user & booking room
+      const cancelNotice = {
+        bookingId: String(updated._id),
+        booking: payload,
+        reason,
+        message: 'Driver cancelled — searching for another nearby ambulance...',
+      }
+      io.to(`booking_${updated._id}`).emit('booking_driver_cancelled', cancelNotice)
+      if (updated.authUserId) {
+        io.to(userRoom(updated.authUserId.toString())).emit('booking_driver_cancelled', cancelNotice)
+        io.to(userRoom(updated.authUserId.toString())).emit('BOOKING_STATUS_UPDATED', payload)
+      }
+      // Re-broadcast to private drivers channel so another driver can pick it up
+      if (otherDriversCount > 0) {
+        io.to('private_drivers_channel').emit('NEW_PRIVATE_BOOKING', payload)
+      }
+    }
+
+    // Send FCM push to user if assigned driver cancelled
+    if (isAssignedToMe && updated.authUserId) {
+      User.findById(updated.authUserId).select('fcmToken fcmTokens').lean().then(userDoc => {
+        const uTokens = []
+        if (userDoc?.fcmToken) uTokens.push(userDoc.fcmToken)
+        if (Array.isArray(userDoc?.fcmTokens)) uTokens.push(...userDoc.fcmTokens)
+        const validUTokens = [...new Set(uTokens.filter(Boolean))]
+        if (validUTokens.length > 0) {
+          sendFcmNotification({
+            tokens: validUTokens,
+            title: '🔄 Re-assigning Ambulance',
+            body: 'Your previous driver cancelled. Searching for another nearby ambulance...',
+            channelId: 'emstrap_private_booking_buzzer_v4',
+            sound: 'private_driver_alert',
+            data: { bookingId: String(updated._id), type: 'BOOKING_DRIVER_CANCELLED' }
+          }).catch(() => {})
+        }
+      }).catch(() => {})
+    }
+
+    return res.json({
+      success: true,
+      message: 'Ride cancelled and re-dispatched to available private drivers',
+      data: { booking: payload }
+    })
   } catch (error) { next(error) }
 }

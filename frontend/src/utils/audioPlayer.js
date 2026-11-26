@@ -58,3 +58,13 @@ export function playBookingChime() {
     console.warn('[AudioPlayer] Booking chime error:', e.message)
   }
 }
+
+
+export function stopBookingChime() {
+  if (activeBookingAudio) {
+    try {
+      activeBookingAudio.pause()
+      activeBookingAudio.currentTime = 0
+    } catch (_) {}
+  }
+}

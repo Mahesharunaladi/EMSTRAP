@@ -12,6 +12,7 @@ const router = express.Router()
 
 router.post('/dispatch', optionalAuthenticate, dispatchEmergencyHttp)
 router.get('/mine', authenticate, getMyEmergencies)
+router.get('/user/my-emergencies', authenticate, getMyEmergencies)
 router.get('/:id', optionalAuthenticate, getEmergencyById)
 router.patch('/:id/description', optionalAuthenticate, updateEmergencyDescription)
 router.patch('/:id/evidence', optionalAuthenticate, addEmergencyEvidence)

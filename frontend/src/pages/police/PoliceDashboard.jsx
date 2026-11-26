@@ -6,6 +6,7 @@ import { joinPoliceRoom } from '../../services/emergencySocket'
 import { normalizeCoords } from '../../utils/geoUtils'
 import { calculateEta } from '../../utils/etaCalculator'
 import { playEmergencySiren, stopEmergencySiren } from '../../utils/audioPlayer'
+import PoliceLiveMap from '../../components/PoliceLiveMap'
 
 function relativeMarkerStyles(userLocation, driverLocation) {
   const u = normalizeCoords(userLocation)
@@ -218,14 +219,14 @@ export default function PoliceDashboard() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f7f7f5] px-4 py-6 text-slate-950">
+    <main className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#f7f7f5] px-3 sm:px-4 pt-8 pt-safe pb-24 text-slate-950">
       <div className="mx-auto w-full max-w-[840px]">
         {/* Header with Mute & Logout */}
-        <header className="flex items-center justify-between border-b border-slate-200 pb-5">
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4">
           <div>
-            <div className="flex items-center gap-3">
-              <img src="/emstrap-logo.png" alt="EmSTraP" className="h-12 w-auto" />
-              <div className="flex items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <img src="/emstrap-logo.png" alt="EmSTraP" className="h-10 sm:h-12 w-auto shrink-0" />
+              <div className="flex flex-wrap items-center gap-1.5">
                 <span className="rounded-full bg-blue-900 px-3 py-1 text-xs font-bold text-white shadow-sm flex items-center gap-1">
                   <ShieldCheck size={14} className="text-blue-300" /> Police Command HQ
                 </span>
@@ -291,7 +292,7 @@ export default function PoliceDashboard() {
           </div>
         )}
 
-        <div className="mt-6 grid gap-6 md:grid-cols-[2fr_1fr]">
+        <div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-[2fr_1fr] w-full min-w-0">
           {emergencies.length ? (
             <section className="space-y-4">
               {emergencies.map(emergency => {
@@ -308,7 +309,7 @@ export default function PoliceDashboard() {
                 const evidenceItems = emergency.evidenceImages || emergency.evidence || []
 
                 return (
-                  <article key={emergency._id} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+                  <article key={emergency._id} className="w-full min-w-0 rounded-3xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm space-y-4 overflow-hidden">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <div className="flex items-center gap-2">
@@ -340,30 +341,10 @@ export default function PoliceDashboard() {
                     )}
 
                     {/* Dual Interactive Radar */}
-                    {driverLocation ? (
-                      <div className="overflow-hidden rounded-2xl border border-slate-300 bg-slate-100 shadow-inner">
-                        <iframe
-                          title="Police Dual Tracking Radar"
-                          className="h-52 w-full border-0"
-                          loading="lazy"
-                          src={`https://www.openstreetmap.org/export/embed.html?bbox=${driverLocation.lng - 0.012}%2C${driverLocation.lat - 0.012}%2C${driverLocation.lng + 0.012}%2C${driverLocation.lat + 0.012}&layer=mapnik&marker=${driverLocation.lat}%2C${driverLocation.lng}`}
-                        />
-                      </div>
-                    ) : victimLocation ? (
-                      <div className="overflow-hidden rounded-2xl border border-slate-300 bg-slate-100 shadow-inner">
-                        <iframe
-                          title="Police Incident Location Radar"
-                          className="h-52 w-full border-0"
-                          loading="lazy"
-                          src={`https://www.openstreetmap.org/export/embed.html?bbox=${victimLocation.lng - 0.008}%2C${victimLocation.lat - 0.008}%2C${victimLocation.lng + 0.008}%2C${victimLocation.lat + 0.008}&layer=mapnik&marker=${victimLocation.lat}%2C${victimLocation.lng}`}
-                        />
-                      </div>
-                    ) : (
-                      <div className="driver-map h-48"><div className="driver-map-grid" /><span className="driver-marker driver-marker-user"><MapPin size={16} fill="currentColor" /></span></div>
-                    )}
+                    <PoliceLiveMap victimLocation={victimLocation} driverLocation={driverLocation} />
 
                     {/* Coordinates & Caller Info */}
-                    <div className="rounded-2xl bg-slate-50 p-3 text-xs text-slate-700 space-y-1">
+                    <div className="rounded-2xl bg-slate-50 p-3 text-xs text-slate-700 space-y-1 break-words">
                       <p><b>Victim GPS:</b> {victimLocation ? `${victimLocation.lat.toFixed(5)}, ${victimLocation.lng.toFixed(5)}` : 'Pending GPS'}</p>
                       {emergency.userId?.name && <p><b>Caller:</b> {emergency.userId.name} {emergency.userId.phone ? `(${emergency.userId.phone})` : ''}</p>}
                       {emergency.incidentDetails && <p><b>Incident Notes:</b> {emergency.incidentDetails}</p>}
@@ -381,10 +362,10 @@ export default function PoliceDashboard() {
                               setActivePhotoIndex(0)
                               setFullViewModalOpen(true)
                             }}
-                            className="flex items-center gap-1 rounded-lg bg-red-600/10 px-2 py-0.5 text-[11px] font-bold text-red-700 hover:bg-red-600/20 transition"
+                            className="flex min-h-[44px] items-center gap-1.5 rounded-xl bg-red-600 px-3 py-2 text-xs font-bold text-white shadow-sm hover:bg-red-700 transition"
                           >
-                            <Camera size={12} />
-                            <span>View Full Gallery ({(emergency.incidentImage ? 1 : 0) + evidenceItems.length})</span>
+                            <Camera size={14} />
+                            <span>Full View Evidence ({(emergency.incidentImage ? 1 : 0) + evidenceItems.length})</span>
                           </button>
                         </div>
                         <div className="flex flex-wrap gap-2">
@@ -475,6 +456,113 @@ export default function PoliceDashboard() {
           </aside>
         </div>
       </div>
+
+
+      {/* Sequential Full View Evidence Gallery Modal */}
+      {fullViewModalOpen && activeEmergencyForModal && (() => {
+        const photos = []
+        if (activeEmergencyForModal.incidentImage?.url || (typeof activeEmergencyForModal.incidentImage === 'string' && activeEmergencyForModal.incidentImage)) {
+          photos.push({
+            url: activeEmergencyForModal.incidentImage?.url || activeEmergencyForModal.incidentImage,
+            note: 'Initial SOS Report Photo',
+            uploader: activeEmergencyForModal.userId?.name || 'Citizen Reporter',
+            uploadedAt: activeEmergencyForModal.createdAt
+          })
+        }
+        const extra = activeEmergencyForModal.evidenceImages || activeEmergencyForModal.evidence || []
+        extra.forEach((img, i) => {
+          const url = typeof img === 'string' ? img : img?.url
+          if (url && !photos.some(p => p.url === url)) {
+            photos.push({
+              url,
+              note: img?.note || `Witness / Scene Evidence #${i + 1}`,
+              uploader: img?.uploaderName || img?.uploadedBy || 'Scene Witness / Reporter',
+              uploadedAt: img?.uploadedAt || activeEmergencyForModal.createdAt
+            })
+          }
+        })
+        if (!photos.length) return null
+        const safeIdx = Math.min(activePhotoIndex, photos.length - 1)
+        const current = photos[safeIdx]
+
+        return (
+          <div
+            role="dialog"
+            className="fixed inset-0 z-50 flex flex-col bg-slate-950/95 text-white backdrop-blur-md"
+            onClick={() => setFullViewModalOpen(false)}
+          >
+            <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3 pt-safe" onClick={e => e.stopPropagation()}>
+              <div className="min-w-0">
+                <p className="text-xs font-bold uppercase tracking-wider text-red-400">
+                  Evidence {safeIdx + 1} of {photos.length} · Incident #{String(activeEmergencyForModal._id).slice(-6)}
+                </p>
+                <p className="truncate text-xs text-slate-300">{current.note}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFullViewModalOpen(false)}
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/15 text-white hover:bg-white/25"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="relative flex flex-1 items-center justify-center overflow-hidden p-3" onClick={e => e.stopPropagation()}>
+              <img
+                src={current.url}
+                alt={current.note}
+                className="max-h-[70vh] w-full max-w-2xl rounded-2xl object-contain"
+              />
+              {photos.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setActivePhotoIndex((safeIdx - 1 + photos.length) % photos.length)}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 grid h-11 w-11 place-items-center rounded-full bg-black/60 text-white border border-white/20 hover:bg-black/80"
+                  >
+                    <ChevronLeft size={22} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActivePhotoIndex((safeIdx + 1) % photos.length)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 grid h-11 w-11 place-items-center rounded-full bg-black/60 text-white border border-white/20 hover:bg-black/80"
+                  >
+                    <ChevronRight size={22} />
+                  </button>
+                </>
+              )}
+            </div>
+
+            <div className="border-t border-slate-800 bg-slate-900/90 px-4 py-3 pb-safe text-xs space-y-1.5" onClick={e => e.stopPropagation()}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-bold text-white">Uploader: {current.uploader}</span>
+                <span className="text-slate-400">
+                  {current.uploadedAt ? new Date(current.uploadedAt).toLocaleString() : ''}
+                </span>
+              </div>
+              {(activeEmergencyForModal.incidentDetails || activeEmergencyForModal.description) && (
+                <p className="text-slate-300 leading-relaxed break-words">
+                  <b>Incident Notes:</b> {activeEmergencyForModal.incidentDetails || activeEmergencyForModal.description}
+                </p>
+              )}
+              {photos.length > 1 && (
+                <div className="flex gap-2 overflow-x-auto pt-1 pb-1">
+                  {photos.map((p, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setActivePhotoIndex(i)}
+                      className={`shrink-0 rounded-lg overflow-hidden border-2 ${i === safeIdx ? 'border-red-500' : 'border-transparent opacity-60'}`}
+                    >
+                      <img src={p.url} alt="" className="h-12 w-12 object-cover" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Enlarged Photo Modal */}
       {modalImage && (

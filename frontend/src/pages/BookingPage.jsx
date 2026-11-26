@@ -248,23 +248,21 @@ export default function BookingPage() {
 
   return (
     <MobileAppShell>
-      <div className="pt-2">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-200/80 mb-3">
-          <Link to="/app" className="flex items-center">
-            <img src="/emstrap-logo.png" alt="EmSTraP" className="h-10 w-auto" />
-          </Link>
-          <span className="rounded-full bg-blue-100 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-blue-800 border border-blue-200">
-            Private Ambulance Portal
-          </span>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <Link to="/app" className="grid h-10 w-10 place-items-center rounded-full border border-slate-300 bg-white shadow-sm hover:bg-slate-50 transition">
-            <ArrowLeft size={18} />
-          </Link>
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-[.18em] text-blue-700">Non-emergency transport</p>
-            <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900">Book an ambulance</h1>
+      <div className="pt-1">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Link to="/app" className="grid h-10 w-10 place-items-center rounded-full border border-slate-300 bg-white shadow-sm hover:bg-slate-50 transition">
+              <ArrowLeft size={18} />
+            </Link>
+            <div>
+              <div className="flex items-center gap-2">
+                <p className="text-[11px] font-bold uppercase tracking-[.18em] text-blue-700">Non-emergency transport</p>
+                <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-blue-800 border border-blue-200">
+                  Private Ambulance
+                </span>
+              </div>
+              <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900">Book an ambulance</h1>
+            </div>
           </div>
         </div>
       </div>

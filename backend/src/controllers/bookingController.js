@@ -122,7 +122,7 @@ export async function createBooking(req, res, next) {
           tokens: uniqueTokens,
           title: '🚑 NEW AMBULANCE BOOKING',
           body: 'New private ambulance ride request received.',
-          channelId: 'emstrap_private_booking_buzzer_v3',
+          channelId: 'emstrap_private_booking_buzzer_v4',
           sound: 'private_driver_alert',
           data: {
             bookingId: String(booking._id),
@@ -245,7 +245,7 @@ export async function acceptDriverBooking(req, res, next) {
             tokens: validUTokens,
             title: '🚑 Ambulance Assigned — Driver on the way!',
             body: `${driver.name || 'Private Ambulance Unit'} has accepted your booking and is en route.`,
-            channelId: 'emstrap_private_booking_buzzer_v3',
+            channelId: 'emstrap_private_booking_buzzer_v4',
             sound: 'private_driver_alert',
             data: {
               bookingId: String(booking._id),

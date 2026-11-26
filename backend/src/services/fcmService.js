@@ -26,8 +26,8 @@ export function initFirebase() {
 
 /**
  * Send High-Priority FCM Push Notification with Custom Sound Channels
- * Channel 1: emstrap_emergency_buzzer_v2 (emergency_alert)
- * Channel 2: emstrap_private_booking_buzzer_v2 (private_driver_alert)
+ * Channel 1: emstrap_emergency_buzzer_v4 (emergency_alert)
+ * Channel 2: emstrap_private_booking_buzzer_v4 (private_driver_alert)
  */
 export async function sendFcmNotification({ tokens = [], title, body, channelId, sound, data = {} }) {
   const validTokens = (tokens || []).filter(t => typeof t === 'string' && t.trim().length > 10)

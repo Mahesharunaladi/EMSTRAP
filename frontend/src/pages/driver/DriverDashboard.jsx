@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import DriverAppShell from './DriverAppShell'
 import { playEmergencySiren, stopEmergencySiren, playBookingChime } from '../../utils/audioPlayer'
+import { triggerLocalBuzzerNotification, initPushNotificationChannels } from '../../utils/notificationChannels'
 import DriverCameraModal from './DriverCameraModal'
 import { verifyDriverFaceMatch } from '../../utils/faceMatcher'
 import api from '../../services/api'
@@ -53,6 +54,9 @@ export default function DriverDashboard() {
     }
 
     const fcmToken = localStorage.getItem('emstrap_fcm_token') || undefined
+    if (nextStatus) {
+      initPushNotificationChannels().catch(() => {})
+    }
     try {
       await api.patch('/driver/duty-status', { isOnDuty: nextStatus, fcmToken }).catch(async (err) => {
         // Fallback to /driver/duty or /bookings/driver/duty
@@ -137,14 +141,22 @@ export default function DriverDashboard() {
     const onEmergencyAlert = alert => {
       if (driver.driverType === 'GOVERNMENT' && online) {
         setEmergency(alert)
-        playEmergencySiren(true) // Loop Klaxon buzzer until accepted
+        triggerLocalBuzzerNotification({
+          title: '🚨 CRITICAL EMERGENCY SOS',
+          body: 'New emergency trauma victim dispatch nearby. Tap to respond!',
+          type: 'EMERGENCY_SOS'
+        })
         toast.success('Emergency SOS alert received')
       }
     }
 
     const wrappedNewBooking = booking => {
       if (!online) return
-      playBookingChime() // Triple-chime notification for private booking
+      triggerLocalBuzzerNotification({
+        title: '🚑 NEW AMBULANCE BOOKING',
+        body: `Private ambulance requested: ${booking?.tier || 'Standard'} ride nearby.`,
+        type: 'PRIVATE_BOOKING'
+      })
       onNewBooking(booking)
     }
 

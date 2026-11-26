@@ -118,7 +118,7 @@ export async function testPushNotification(req, res, next) {
       })
     }
 
-    const testChannel = channelId || (role === 'PRIVATE_DRIVER' ? 'emstrap_private_booking_buzzer_v3' : 'emstrap_emergency_buzzer_v3')
+    const testChannel = channelId || (role === 'PRIVATE_DRIVER' ? 'emstrap_private_booking_buzzer_v4' : 'emstrap_emergency_buzzer_v4')
     const testSound = sound || (role === 'PRIVATE_DRIVER' ? 'private_driver_alert' : 'emergency_alert')
 
     const result = await sendFcmNotification({

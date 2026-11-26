@@ -218,7 +218,7 @@ export async function dispatchEmergencyHttp(req, res, next) {
             tokens: uniqueTokens,
             title: '🚨 URGENT EMERGENCY SOS',
             body: 'New government emergency dispatch nearby. Tap to view & accept immediately.',
-            channelId: 'emstrap_emergency_buzzer_v3',
+            channelId: 'emstrap_emergency_buzzer_v4',
             sound: 'emergency_alert',
             data: {
               emergencyId: String(request._id),

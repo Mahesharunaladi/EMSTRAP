@@ -30,7 +30,7 @@ function fileToDataUrl(file) {
 }
 export default function DriverPortal() {
   const navigate = useNavigate();
-  const { driverSession, isAuthInitializing, saveDriverAuthSession } = useAuth(); const [mode, setMode] = useState(() => {
+  const { driverSession, isAuthInitializing, saveDriverAuthSession } = useAuth() || {}; const [mode, setMode] = useState(() => {
     return localStorage.getItem('emstrap_driver_has_registered') === 'true' || localStorage.getItem('lastRole') === 'DRIVER' ? 'login' : 'login';
   }); const [stage, setStage] = useState('account'); const [pendingEmail, setPendingEmail] = useState(''); const [code, setCode] = useState(''); const [cameraOpen, setCameraOpen] = useState(false); const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', driverType: 'GOVERNMENT', governmentId: '' }); const [docs, setDocs] = useState({ selfie: null, license: null }); const [loading, setLoading] = useState(false)
 
